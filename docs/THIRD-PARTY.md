@@ -1,6 +1,6 @@
 # 第三方素材与在线服务
 
-2026-10-16。根目录 [MIT](../LICENSE)适用于项目自身代码；第三方素材和服务适用独立条款，不因项目 MIT 自动改为同一授权。此清单区分**当前公开分发、源码历史保留及在线服务**。
+根目录 [MIT](../LICENSE) 适用于项目自身代码；第三方素材和服务适用各自条款，不因项目 MIT 自动改为同一授权。
 
 ## 当前随应用分发的图标与图像
 
@@ -10,11 +10,7 @@
 | `assets/icons/*.svg` 中公开清单列出的文件 | [Lucide Icons](https://lucide.dev/)，ISC；其中部分源自 Cole Bemis 的 Feather Icons，适用附带 MIT | [本地完整 ISC / Feather MIT 文本](licenses/LUCIDE-ISC.txt)随公开分发保留；[上游许可](https://github.com/lucide-icons/lucide/blob/main/LICENSE)。只使用 SVG，不集成 Lucide JS 包 |
 | `assets/brand.svg` | 本项目应用图标 / 标识 | 不属于 Lucide 目录或 Twemoji PNG |
 
-当前分发以 Vite 构建产物 `dist/` 为准；构建会把 `assets/` 静态素材整体复制进 `dist/assets`，目录中存在文件即代表会被分发。替换素材或公开商用前仍须核对来源、条款与实际署名。
-
-## 已移除的历史依赖
-
-第四轮曾使用 GridStack 14.0.0（MIT）作为自由布局引擎。当前 Vue 3 版本采用固定自然高度布局，不再加载该库，相关 vendor 文件与声明已从仓库移除。
+当前分发以 Vite 构建产物 `dist/` 为准；构建会把 `assets/` 静态素材整体复制进 `dist/assets`。
 
 ## 字体与用户媒体
 
