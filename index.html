@@ -6,11 +6,24 @@
 <meta name="theme-color" content="#f4f6fb">
 <meta name="description" content="青柠工作台 · 任务、专注、账本、生活记录与工作便签，本地优先。">
 <title>青柠工作台 · 今天</title>
-<link id="siteFavicon" rel="icon" type="image/svg+xml" href="/assets/brand.svg">
-<link rel="manifest" href="/manifest.webmanifest">
+
+<!-- Relative paths: the same build has to work at a domain root and under a sub-path such as
+     https://user.github.io/lime-workbench/ . Leading slashes break the latter. -->
+<link rel="icon" type="image/svg+xml" href="assets/brand.svg">
+<link rel="icon" type="image/png" sizes="192x192" href="pwa-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<!-- The manifest URL must stay unhashed: its icon paths are relative to it. See vite.config.js. -->
+<link rel="manifest" href="manifest.webmanifest">
+
+<!-- iOS standalone: without these, a home-screen launch opens inside Safari with browser chrome. -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="青柠工作台">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="format-detection" content="telephone=no">
 </head>
 <body>
 <div id="app"></div>
-<script type="module" src="/src/main.js"></script>
+<script type="module" src="src/main.js"></script>
 </body>
 </html>

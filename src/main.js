@@ -4,11 +4,16 @@ import './styles/base.css';
 import './styles/glass.css';
 import { initSpotlight } from './lib/spotlight.js';
 
-// Production registers the app-shell worker. Development unregisters any old worker (including
-// the pre-Vue v34 shell) so edits are never served from a stale cache.
+// Production registers the app-shell worker. Development unregisters any old worker so edits
+// are never served from a stale cache.
+//
+// The URL is resolved relative to the document rather than as '/sw.js': the app must also work
+// under a sub-path (https://user.github.io/lime-workbench/), where an absolute path would 404
+// and the app would silently lose offline support.
 if ('serviceWorker' in navigator && location.protocol.startsWith('http') && !('__TAURI_INTERNALS__' in window)) {
   if (import.meta.env.PROD) {
-    navigator.serviceWorker.register('/sw.js').catch(() => {});
+    const swUrl = new URL('sw.js', document.baseURI).href;
+    navigator.serviceWorker.register(swUrl, { scope: './' }).catch(() => {});
   } else {
     navigator.serviceWorker.getRegistrations?.()
       .then(list => Promise.all(list.map(registration => registration.unregister().catch(() => {}))))
