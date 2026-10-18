@@ -1,0 +1,55 @@
+# Dependencies and package-manager caches
+node_modules/
+.pnp
+.pnp.js
+
+# Environment variants and private signing material
+.env
+.env.*
+!.env.example
+!.env.*.example
+!.env.template
+!.env.*.template
+*.key
+*.pem
+*.p12
+*.pfx
+*.jks
+*.keystore
+*.p8
+*.mobileprovision
+key.properties
+keystore.properties
+signing.properties
+
+# Web / native build outputs; keep native source/configuration and Cargo.lock
+/dist/
+/build/
+/target/
+/src-tauri/target/
+/src-tauri/gen/
+/src-tauri/.tauri/
+/src-tauri/**/local.properties
+.cache/
+
+# Editors and OS metadata
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Logs and temporary work
+*.log
+npm-debug.log*
+/tmp/
+/temp/
+
+# Personal business backups; do not ignore all JSON or assets
+*.backup.json
+lime-workbench-*.json
+
+# Reproducible local browser evidence, not release inputs
+/tools/shots/
+/tools/latest-*-results.txt
+/tools/latest-*-results.json

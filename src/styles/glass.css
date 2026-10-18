@@ -1,0 +1,446 @@
+/* ============================================================
+   基础排版 / 控件 / 液态玻璃组件
+   ============================================================ */
+
+/* Registered so the specular highlight can fade instead of snapping.
+   Browsers without @property simply change it instantly — still correct. */
+@property --glass-spot-a {
+  syntax: "<number>";
+  inherits: false;
+  initial-value: 0;
+}
+@property --rim-shift {
+  syntax: "<percentage>";
+  inherits: false;
+  initial-value: 0%;
+}
+
+* { box-sizing: border-box; }
+html { min-width: 320px; background: var(--bg); scroll-behavior: smooth; scroll-padding-top: 96px; }
+body {
+  margin: 0; min-height: 100vh; color: var(--ink);
+  font-family: var(--font-ui); font-size: 14px; line-height: 1.6;
+  -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
+  font-kerning: normal; overflow-x: hidden;
+}
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; touch-action: manipulation; }
+button:disabled, input:disabled, select:disabled { cursor: not-allowed; opacity: .55; }
+img { display: block; max-width: 100%; }
+[hidden] { display: none !important; }
+h1, h2, h3, h4, p { margin: 0; }
+:focus-visible { outline: 2px solid var(--brand); outline-offset: 3px; box-shadow: var(--ring); }
+::selection { background: color-mix(in srgb, var(--brand) 24%, transparent); color: var(--ink); }
+
+* { scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--muted) 32%, transparent);
+  border-radius: 99px; border: 3px solid transparent; background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover { background: color-mix(in srgb, var(--muted) 54%, transparent); background-clip: content-box; }
+
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+.numeric { font-family: var(--font-numeric); font-variant-numeric: tabular-nums lining-nums; }
+
+/* ---------- 背景场景 ---------- */
+.scene {
+  position: fixed; inset: -30px; z-index: -2; pointer-events: none;
+  background-color: var(--scene-base);
+  background-image: var(--background-image);
+  background-size: cover; background-position: center;
+  /* No filter blur here: an 18px blur on a fixed full-viewport layer re-rasterises on every
+     scroll and drag frame. The radial gradients are already soft, so the blur bought almost
+     nothing and cost the worst frame. */
+}
+.scene::before {
+  content: ""; position: absolute; inset: 0;
+  /* Colour fields spread across the whole viewport, not parked in the corners. Panels sit
+     mid-page, so light confined to the edges would never reach them: the blur would render
+     as flat white no matter how strong it is. */
+  background:
+    radial-gradient(ellipse 46% 44% at 12% 8%, var(--scene-a) 0, transparent 68%),
+    radial-gradient(ellipse 44% 42% at 88% 16%, var(--scene-b) 0, transparent 66%),
+    radial-gradient(ellipse 52% 46% at 72% 58%, var(--scene-c) 0, transparent 70%),
+    radial-gradient(ellipse 48% 42% at 26% 74%, var(--scene-d) 0, transparent 68%),
+    radial-gradient(ellipse 40% 36% at 52% 96%, var(--scene-a) 0, transparent 70%);
+  /* Slow ambient drift: the light behind the glass shifts so the blur has something to catch.
+     60s is deliberately below the threshold of noticing — it reads as depth, not animation.
+     will-change keeps it on its own compositor layer so the drift never repaints the cards. */
+  animation: scene-drift 60s ease-in-out infinite alternate;
+  will-change: transform;
+}
+@keyframes scene-drift {
+  from { transform: translate3d(0, 0, 0) scale(1); }
+  to { transform: translate3d(-1.4%, 1.1%, 0) scale(1.06); }
+}
+.scene::after {
+  content: ""; position: absolute; inset: 0;
+  background: rgb(0 0 0 / var(--background-dim));
+}
+body::before {
+  content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  /* Was 62%: the veil buried the scene under near-white, leaving the glass nothing to
+     refract. Keeping it light enough that colour reaches the glass is what makes the
+     blur visible at all. */
+  background: color-mix(in srgb, var(--bg) 34%, transparent);
+}
+
+/* ---------- 液态玻璃 ---------- */
+.glass {
+  position: relative;
+  background: color-mix(in srgb, var(--surface) var(--glass-alpha), transparent);
+  background-image: linear-gradient(var(--glass-veil), var(--glass-veil));
+  border: 1px solid color-mix(in srgb, var(--line) 78%, transparent);
+  box-shadow: var(--shadow-sm), inset 0 1px 0 var(--glass-rim);
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  /* Theme switches fade instead of snapping. Kept short so it never delays a click. */
+  transition: background-color 420ms var(--ease-out), border-color 420ms var(--ease-out),
+    box-shadow 420ms var(--ease-out);
+}
+/* 1px 高光折射边：高光沿边缘缓慢游走，模拟玻璃厚度对光线的偏折。
+   光标靠近时叠加一段更亮的染色弧，让玻璃的"厚度"在指针下被点亮。 */
+.rim::before {
+  content: ""; position: absolute; inset: 0; border-radius: inherit; padding: 1px;
+  background:
+    radial-gradient(
+      64px circle at var(--mx, 50%) var(--my, 50%),
+      color-mix(in srgb, var(--brand) calc(var(--spot-alpha, 0) * 55%), transparent),
+      color-mix(in srgb, var(--brand) calc(var(--spot-alpha, 0) * 14%), transparent) 50%,
+      transparent 78%
+    ),
+    linear-gradient(
+      158deg,
+      var(--glass-rim) calc(0% + var(--rim-shift)),
+      var(--glass-rim-soft) 32%,
+      transparent 56%,
+      var(--glass-rim-soft) 80%,
+      var(--glass-rim) calc(100% + var(--rim-shift))
+    );
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor; mask-composite: exclude;
+  pointer-events: none;
+  animation: rim-drift 14s var(--ease-out) infinite alternate;
+}
+@keyframes rim-drift {
+  from { --rim-shift: 0%; }
+  to { --rim-shift: 18%; }
+}
+[data-card-style="solid"] .glass { background: var(--surface); backdrop-filter: none; -webkit-backdrop-filter: none; }
+[data-card-style="hairline"] .glass {
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+  backdrop-filter: none; -webkit-backdrop-filter: none;
+  border-color: var(--line-strong); box-shadow: none;
+}
+
+/* ---------- 卡片微交互 ---------- */
+.card {
+  border-radius: var(--radius-card);
+  transition: transform var(--motion-base) var(--ease-out),
+    box-shadow var(--motion-base) var(--ease-out),
+    border-color var(--motion-base) var(--ease-out);
+}
+.card-hover:hover { transform: translateY(-2px); box-shadow: var(--shadow-md), inset 0 1px 0 var(--glass-rim); border-color: var(--line-strong); }
+.card-lift:active { transform: translateY(0) scale(.995); }
+
+/* Glass thickness: a second inset shadow along the bottom edge reads as the far side of a
+   pane of glass. Without it, a translucent card looks like a flat tint, not a physical layer. */
+.glass {
+  box-shadow:
+    var(--shadow-sm),
+    inset 0 1px 0 var(--glass-rim),
+    inset 0 -1px 0 color-mix(in srgb, var(--ink) 5%, transparent);
+}
+
+/* 聚光灯：光标处一片跟随的镜面高光。
+   只用伪元素实现，不碰元素自身的 background-image —— 面板、KPI 卡各自覆写了背景，
+   叠加背景层会互相覆盖。强度经 @property 注册，因此能平滑淡入而不是瞬时出现。 */
+.spot,
+.panel.glass {
+  position: relative;
+  transition: transform 320ms var(--ease-out), box-shadow 320ms var(--ease-out),
+    border-color 320ms var(--ease-out);
+}
+/* 内层高光：贴着光标的核心亮斑。
+   半径再收一档：90/190px 在 1900px 宽的卡片上仍是一团明显的绿色。现在 56/120px 更像
+   一小片反光，而不是给整块面板染色。 */
+.spot::after,
+.panel.glass::after {
+  content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+  background:
+    radial-gradient(56px circle at var(--mx, 50%) var(--my, 50%),
+      color-mix(in srgb, var(--brand) 14%, transparent), transparent 70%),
+    radial-gradient(120px circle at var(--mx, 50%) var(--my, 50%),
+      color-mix(in srgb, var(--brand) 5%, transparent), transparent 78%);
+  opacity: var(--spot-alpha, 0);
+  transition: opacity 300ms var(--ease-out);
+  z-index: 0;
+}
+
+/* 跟随光标的边缘描边已并入 .rim::before 的渐变层，见上。 */
+.spot:hover,
+.panel.glass:hover {
+  --spot-alpha: 1;
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md), inset 0 1px 0 var(--glass-rim);
+  border-color: color-mix(in srgb, var(--brand) 34%, var(--line));
+}
+.spot > *, .panel.glass > * { position: relative; z-index: 1; }
+
+/* ---------- 按钮 ---------- */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  min-height: 40px; padding: 0 16px; border-radius: var(--radius-control);
+  font-size: 14px; font-weight: 600; white-space: nowrap;
+  transition: background-color var(--motion-fast), border-color var(--motion-fast),
+    color var(--motion-fast), box-shadow var(--motion-fast), transform var(--motion-fast) var(--ease-out);
+}
+.btn:active:not(:disabled) { transform: translateY(1px); }
+.btn img { width: 17px; height: 17px; flex: 0 0 17px; opacity: .82; }
+.btn-primary {
+  border: 1px solid var(--cta-bg); background: var(--brand-grad); color: var(--cta-fg);
+  box-shadow: var(--shadow-brand);
+}
+.btn-primary:hover:not(:disabled) { filter: brightness(1.07); transform: translateY(-1px); box-shadow: var(--shadow-md), var(--shadow-brand); }
+.btn-primary img { filter: brightness(0) invert(1); opacity: .95; }
+.btn-soft {
+  border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink-soft);
+  box-shadow: var(--shadow-sm);
+}
+.btn-soft:hover:not(:disabled) { background: var(--surface-soft); color: var(--ink); border-color: color-mix(in srgb, var(--brand) 40%, var(--line-strong)); }
+.btn-ghost { border: 1px solid transparent; background: transparent; color: var(--ink-soft); }
+.btn-ghost:hover:not(:disabled) { background: var(--surface-soft); color: var(--ink); }
+.btn-text { border: 0; background: transparent; color: var(--brand); padding: 4px 2px; min-height: 32px; font-size: 13px; }
+.btn-text:hover:not(:disabled) { color: var(--brand-deep); text-decoration: underline; text-underline-offset: 3px; }
+.btn-danger-text { color: var(--coral); }
+.btn-danger-text:hover:not(:disabled) { color: var(--coral); }
+.btn-sm { min-height: 32px; padding: 0 11px; font-size: 12.5px; border-radius: 10px; }
+.btn-sm img { width: 15px; height: 15px; flex-basis: 15px; }
+.btn-icon {
+  display: grid; place-items: center; width: 40px; height: 40px; flex: 0 0 40px;
+  padding: 0; border: 1px solid transparent; border-radius: var(--radius-control);
+  background: transparent; color: var(--ink-soft);
+}
+.btn-icon:hover:not(:disabled) { background: var(--surface-soft); color: var(--ink); }
+.btn-icon img { width: 19px; height: 19px; opacity: .8; }
+.btn-icon.is-danger:hover:not(:disabled) { background: var(--coral-pale); color: var(--coral); }
+
+/* ---------- 表单 ---------- */
+.field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.field > span, .field-label { font-size: 12.5px; font-weight: 600; color: var(--ink-soft); }
+.field small { font-size: 12px; color: var(--muted); }
+.input {
+  width: 100%; min-height: 42px; padding: 9px 13px;
+  border: 1px solid var(--line-strong); border-radius: var(--radius-control);
+  background: var(--surface); color: var(--ink); font-size: 14px;
+  transition: border-color var(--motion-fast), box-shadow var(--motion-fast);
+}
+.input::placeholder { color: var(--muted); opacity: 1; }
+.input:focus { outline: none; border-color: var(--brand); box-shadow: var(--ring); }
+textarea.input { resize: vertical; min-height: 84px; line-height: 1.65; padding: 10px 13px; }
+select.input {
+  appearance: none; padding-right: 36px; cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 12px center;
+}
+.checkbox { width: 18px; height: 18px; accent-color: var(--brand); cursor: pointer; }
+
+/* ---------- 徽章 / 标签 ---------- */
+.badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  min-height: 22px; padding: 1px 8px; border-radius: 7px;
+  background: var(--surface-soft); color: var(--ink-soft);
+  font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums;
+  border: 1px solid var(--line);
+}
+.badge-brand { background: var(--brand-pale); color: var(--brand-deep); border-color: color-mix(in srgb, var(--brand) 22%, transparent); }
+.badge-coral { background: var(--coral-pale); color: var(--coral); border-color: color-mix(in srgb, var(--coral) 22%, transparent); }
+.badge-amber { background: var(--amber-pale); color: var(--amber); border-color: color-mix(in srgb, var(--amber) 22%, transparent); }
+.badge-violet { background: var(--violet-pale); color: var(--violet); border-color: color-mix(in srgb, var(--violet) 22%, transparent); }
+
+/* 图标方块 */
+.icon-tile {
+  display: grid; place-items: center; width: 36px; height: 36px; flex: 0 0 36px;
+  border-radius: 11px; background: var(--brand-grad); color: #fff;
+  box-shadow: var(--shadow-brand);
+}
+.icon-tile img { width: 18px; height: 18px; filter: brightness(0) invert(1); opacity: .96; }
+.icon-tile.tile-blue { background: linear-gradient(135deg, #3a6f95, #4d728c); box-shadow: 0 6px 14px rgb(77 114 140 / .24); }
+.icon-tile.tile-amber { background: linear-gradient(135deg, #9a6f22, #c69332); box-shadow: 0 6px 14px rgb(148 107 39 / .24); }
+.icon-tile.tile-coral { background: linear-gradient(135deg, #b34c43, #cf6f5f); box-shadow: 0 6px 14px rgb(179 76 67 / .24); }
+.icon-tile.tile-violet { background: linear-gradient(135deg, #78628f, #9a7fb0); box-shadow: 0 6px 14px rgb(120 98 143 / .24); }
+.icon-tile.tile-soft { background: var(--surface-soft); border: 1px solid var(--line); box-shadow: none; }
+.icon-tile.tile-soft img { filter: none; opacity: .75; }
+
+/* ---------- 面板骨架 ---------- */
+.panel { padding: var(--s5); }
+.panel-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; min-width: 0; }
+.panel-title { display: flex; align-items: center; gap: 9px; font-size: 15.5px; font-weight: 700; letter-spacing: -.01em; min-width: 0; }
+.panel-title img { width: 17px; height: 17px; opacity: .7; }
+.panel-actions { display: flex; align-items: center; gap: 4px; flex: 0 0 auto; }
+.panel-sub { font-size: 12px; color: var(--muted); }
+.divider { height: 1px; background: var(--line); margin: 14px 0; border: 0; }
+
+/* ---------- 空状态 ---------- */
+.empty {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 8px; padding: 18px 20px; text-align: center;
+  border: 0; border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--muted); font-size: 13px; line-height: 1.55;
+  /* An empty panel that stretches across a wide page reads as a failed load. Keep it to a
+     short centred message and let the panel shrink to fit it. */
+  max-width: 62ch; margin-inline: auto;
+}
+/* 空状态不再套第二层边框：所在面板已经提供了边界，嵌套卡片只会增加视觉噪音 */
+.empty-art {
+  width: 56px; height: 56px; display: grid; place-items: center; border-radius: 16px;
+  background: var(--surface-soft); font-size: 26px; line-height: 1;
+}
+.empty strong { font-size: 14px; font-weight: 650; color: var(--ink); }
+.empty p { max-width: 36ch; }
+
+/* ---------- 骨架屏 ---------- */
+.skeleton {
+  border-radius: 8px;
+  background: linear-gradient(90deg,
+    color-mix(in srgb, var(--muted) 13%, transparent) 0 35%,
+    color-mix(in srgb, var(--muted) 5%, transparent) 50%,
+    color-mix(in srgb, var(--muted) 13%, transparent) 65% 100%) 0 0 / 300% 100%;
+  animation: skeleton-wave 1.5s var(--ease-out) 6;
+}
+@keyframes skeleton-wave { from { background-position: 100% 0; } to { background-position: 0 0; } }
+.sk-row { display: flex; align-items: center; gap: 12px; padding: 12px 0; }
+.sk-row > i { width: 34px; height: 34px; border-radius: 10px; flex: 0 0 34px; }
+.sk-row > span { display: grid; gap: 7px; flex: 1; }
+.sk-row b { display: block; height: 11px; width: 62%; }
+.sk-row b + b { width: 36%; height: 9px; }
+
+/* ---------- 弹层 ---------- */
+.overlay {
+  position: fixed; inset: 0; z-index: 80; display: grid; place-items: center;
+  padding: 20px; background: rgb(15 23 42 / .38);
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  animation: fade-in var(--motion-base) var(--ease-out);
+}
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+.modal {
+  width: min(560px, 100%); max-height: min(86vh, 760px); overflow: auto;
+  border-radius: var(--radius-card); padding: 22px;
+  animation: modal-in var(--motion-base) var(--ease-spring);
+}
+@keyframes modal-in { from { opacity: 0; transform: translateY(10px) scale(.98); } to { opacity: 1; transform: none; } }
+.modal-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+.modal-head h2 { font-size: 18px; font-weight: 750; letter-spacing: -.01em; }
+.modal-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 20px; flex-wrap: wrap; }
+.form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+
+/* ---------- Toast / Undo ---------- */
+.toast {
+  position: fixed; left: 50%; bottom: 26px; z-index: 120; transform: translate(-50%, 16px);
+  max-width: min(88vw, 480px); padding: 11px 18px; border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--ink) 92%, transparent); color: var(--surface);
+  font-size: 13.5px; font-weight: 550; box-shadow: var(--shadow-lg);
+  opacity: 0; pointer-events: none;
+  transition: opacity var(--motion-base), transform var(--motion-base) var(--ease-spring);
+}
+.toast.is-show { opacity: 1; transform: translate(-50%, 0); }
+.undo-bar {
+  position: fixed; left: 50%; bottom: 26px; z-index: 121; transform: translate(-50%, 16px);
+  display: flex; align-items: center; gap: 14px;
+  padding: 10px 12px 10px 18px; border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--ink) 94%, transparent); color: var(--surface);
+  box-shadow: var(--shadow-lg); opacity: 0; pointer-events: none;
+  transition: opacity var(--motion-base), transform var(--motion-base) var(--ease-spring);
+}
+.undo-bar.is-show { opacity: 1; pointer-events: auto; transform: translate(-50%, 0); }
+.undo-bar button {
+  border: 0; border-radius: var(--radius-pill); min-height: 34px; padding: 0 14px;
+  background: var(--surface); color: var(--ink); font-size: 13px; font-weight: 650;
+}
+
+/* ---------- 分段控件 / 标签页 ---------- */
+.segmented {
+  display: inline-flex; align-items: center; gap: 3px; padding: 3px;
+  border: 1px solid var(--line); border-radius: var(--radius-control);
+  background: color-mix(in srgb, var(--surface-soft) 80%, transparent);
+}
+.segmented button {
+  border: 1px solid transparent; background: transparent; color: var(--muted);
+  min-height: 32px; padding: 0 12px; border-radius: 9px; font-size: 13px; font-weight: 550;
+  transition: background-color var(--motion-fast), color var(--motion-fast), box-shadow var(--motion-fast);
+}
+.segmented button:hover { color: var(--ink-soft); }
+.segmented button.is-active {
+  background: var(--surface); color: var(--brand-deep); font-weight: 650;
+  border-color: var(--line); box-shadow: var(--shadow-sm);
+}
+.tab-count {
+  display: inline-grid; place-items: center; min-width: 20px; height: 18px; padding: 0 5px;
+  margin-left: 6px; border-radius: 6px; background: var(--surface-soft);
+  font-size: 11.5px; font-weight: 650; font-variant-numeric: tabular-nums;
+}
+.segmented button.is-active .tab-count { background: var(--brand-pale); color: var(--brand-deep); }
+
+/* ---------- 页面通用 ---------- */
+.page-shell { display: flex; flex-direction: column; gap: var(--s5); padding-bottom: 40px; }
+.page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
+.page-head h1 { font-size: 27px; font-weight: 800; letter-spacing: -.025em; line-height: 1.22; }
+.page-head .sub { margin-top: 6px; color: var(--muted); font-size: 13.5px; max-width: 70ch; }
+.page-head-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+/* 滚动入场（仅路由切换） */
+.page-enter { animation: page-enter var(--motion-slow) var(--ease-out) both; }
+@keyframes page-enter { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+/* ---------- 页面切换（View Transitions） ----------
+   导航方向写在 html[data-nav-dir] 上：向下滑入 / 向上滑入，让侧栏获得空间记忆。
+   浏览器不支持时整段规则不生效，页面直接切换。 */
+::view-transition-old(main-content) { animation: vt-out 180ms var(--ease-out) both; }
+::view-transition-new(main-content) { animation: vt-in 260ms var(--ease-out) both; }
+@keyframes vt-out {
+  to { opacity: 0; transform: translateY(calc(var(--vt-dir, 1) * -10px)); }
+}
+@keyframes vt-in {
+  from { opacity: 0; transform: translateY(calc(var(--vt-dir, 1) * 14px)); }
+  to { opacity: 1; transform: none; }
+}
+html[data-nav-dir="up"] { --vt-dir: -1; }
+html[data-nav-dir="down"] { --vt-dir: 1; }
+
+/* ---------- 一次性动效：完成任务 / 专注结束 ----------
+   由 src/lib/effects.js 在真实操作时插入单个元素，动画结束即移除。
+   fixed 定位、pointer-events:none，因此不参与布局也不挡住任何点击。 */
+.burst-ring {
+  position: fixed; z-index: 9998; pointer-events: none;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  border: 2px solid color-mix(in srgb, var(--brand) 55%, transparent);
+  animation: burst-out 620ms var(--ease-out) forwards;
+}
+@keyframes burst-out {
+  from { opacity: .85; transform: translate(-50%, -50%) scale(.12); }
+  to { opacity: 0; transform: translate(-50%, -50%) scale(1); }
+}
+
+.edge-pulse {
+  position: fixed; inset: 0; z-index: 9997; pointer-events: none;
+  box-shadow: inset 0 0 90px 12px color-mix(in srgb, var(--brand) 42%, transparent);
+  animation: edge-pulse 1400ms var(--ease-out) forwards;
+}
+@keyframes edge-pulse {
+  0% { opacity: 0; }
+  22% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* ---------- 减少动态效果 ---------- */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}

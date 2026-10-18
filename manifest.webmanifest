@@ -1,0 +1,20 @@
+{
+  "name": "青柠工作台 · 打工人个人工作台",
+  "short_name": "青柠工作台",
+  "description": "浏览器优先的本地工作台：计划、账本与生活记录可离线使用；天气与可选 AI 需要联网。",
+  "id": "./",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f7f8f5",
+  "theme_color": "#456c4d",
+  "lang": "zh-CN",
+  "icons": [
+    {
+      "src": "assets/brand.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
