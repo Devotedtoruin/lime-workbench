@@ -1,5 +1,6 @@
 <script setup>
 import { computed, reactive, ref, watch } from 'vue';
+import { asset } from '../lib/assets.js';
 import { useWorkbench } from '../composables/useWorkbench.js';
 import { todayKey } from '../../js/core.js';
 
@@ -55,7 +56,7 @@ function onOverlay(event) { if (event.target === event.currentTarget) close(); }
         <div class="modal-head">
           <h2 :id="titleId">{{ isEdit ? '编辑任务' : '新建任务' }}</h2>
           <button class="btn-icon" type="button" aria-label="关闭" @click="close">
-            <img src="/assets/icons/x.svg" alt="" />
+            <img :src="asset('assets/icons/x.svg')" alt="" />
           </button>
         </div>
 
@@ -90,12 +91,12 @@ function onOverlay(event) { if (event.target === event.currentTarget) close(); }
 
           <div class="modal-actions">
             <button v-if="isEdit" class="btn btn-ghost btn-danger-text" type="button" @click="remove">
-              <img src="/assets/icons/trash.svg" alt="" />删除
+              <img :src="asset('assets/icons/trash.svg')" alt="" />删除
             </button>
             <span style="flex: 1"></span>
             <button class="btn btn-soft" type="button" @click="close">取消</button>
             <button class="btn btn-primary" type="submit">
-              <img src="/assets/icons/check.svg" alt="" />{{ isEdit ? '保存修改' : '创建任务' }}
+              <img :src="asset('assets/icons/check.svg')" alt="" />{{ isEdit ? '保存修改' : '创建任务' }}
             </button>
           </div>
         </form>

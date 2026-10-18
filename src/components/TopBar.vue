@@ -1,5 +1,6 @@
 <script setup>
 import { computed, onMounted, onBeforeUnmount, ref } from 'vue';
+import { asset } from '../lib/assets.js';
 import { useWorkbench } from '../composables/useWorkbench.js';
 import { useWeather } from '../composables/useWeather.js';
 
@@ -51,7 +52,7 @@ onBeforeUnmount(() => window.removeEventListener('scroll', onScroll));
     <div class="topbar-actions">
       <!-- 快捷命令 -->
       <button class="command-trigger" type="button" aria-haspopup="dialog" @click="emit('open-command')">
-        <img src="/assets/icons/search.svg" alt="" />
+        <img :src="asset('assets/icons/search.svg')" alt="" />
         <span>快捷命令</span>
         <kbd>Ctrl K</kbd>
       </button>
@@ -71,7 +72,7 @@ onBeforeUnmount(() => window.removeEventListener('scroll', onScroll));
         title="待处理提醒"
         @click="emit('open-notifications')"
       >
-        <img src="/assets/icons/bell.svg" alt="" />
+        <img :src="asset('assets/icons/bell.svg')" alt="" />
         <span v-if="alertCount" class="notif-badge">{{ alertCount }}</span>
       </button>
 
@@ -79,7 +80,7 @@ onBeforeUnmount(() => window.removeEventListener('scroll', onScroll));
       <button class="topbar-avatar" type="button" title="设置与美化" @click="wb.goto('me')">
         <span class="avatar-frame" aria-hidden="true">
           <img v-if="wb.userAvatar.value.kind === 'image'" :src="wb.userAvatar.value.value" alt="" />
-          <img v-else-if="!hasIdentity" class="avatar-placeholder" src="/assets/icons/circle-user-round.svg" alt="" />
+          <img v-else-if="!hasIdentity" class="avatar-placeholder" :src="asset('assets/icons/circle-user-round.svg')" alt="" />
           <template v-else>{{ wb.userAvatar.value.value }}</template>
         </span>
         <span v-if="hasIdentity" class="avatar-name">{{ wb.userDisplayName.value }}</span>

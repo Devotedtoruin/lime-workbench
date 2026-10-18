@@ -1,5 +1,6 @@
 <script setup>
 import { computed } from 'vue';
+import { asset } from '../lib/assets.js';
 import { useWorkbench } from '../composables/useWorkbench.js';
 
 const props = defineProps({ open: Boolean });
@@ -37,7 +38,7 @@ function act(alert, action) {
         <div class="modal-head">
           <h2>提醒中心</h2>
           <button class="btn-icon" type="button" aria-label="关闭" @click="close">
-            <img src="/assets/icons/x.svg" alt="" />
+            <img :src="asset('assets/icons/x.svg')" alt="" />
           </button>
         </div>
 

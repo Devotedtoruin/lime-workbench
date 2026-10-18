@@ -1,5 +1,6 @@
 <script setup>
 import { computed, ref } from 'vue';
+import { asset } from '../lib/assets.js';
 import { useWorkbench } from '../composables/useWorkbench.js';
 
 const emit = defineEmits(['new-task']);
@@ -73,14 +74,14 @@ function label(task) {
       </div>
       <div class="page-head-actions">
         <button class="btn btn-primary" type="button" @click="emit('new-task')">
-          <img src="/assets/icons/plus.svg" alt="" />新建任务
+          <img :src="asset('assets/icons/plus.svg')" alt="" />新建任务
         </button>
       </div>
     </header>
 
     <!-- 自然语言快速添加 -->
     <form class="composer glass rim" @submit.prevent="addQuick">
-      <img src="/assets/icons/sparkles.svg" alt="" />
+      <img :src="asset('assets/icons/sparkles.svg')" alt="" />
       <input
         ref="quickInput"
         v-model="quickText"
@@ -116,11 +117,11 @@ function label(task) {
           :aria-pressed="sortByTime"
           @click="sortByTime = !sortByTime"
         >
-          <img src="/assets/icons/arrow-down-up.svg" alt="" />
+          <img :src="asset('assets/icons/arrow-down-up.svg')" alt="" />
           {{ sortByTime ? '按时间' : '按创建' }}
         </button>
         <button class="btn btn-soft btn-sm" type="button" @click="wb.clearCompletedTodos()">
-          <img src="/assets/icons/trash.svg" alt="" />清理已完成
+          <img :src="asset('assets/icons/trash.svg')" alt="" />清理已完成
         </button>
       </div>
     </div>
@@ -162,13 +163,13 @@ function label(task) {
           <span class="task-due" :class="{ overdue: task.date && task.date < wb.todayStr.value }">{{ label(task) }}</span>
           <div class="task-actions">
             <button class="btn-icon" type="button" title="编辑任务" aria-label="编辑任务" @click="emit('new-task', task)">
-              <img src="/assets/icons/pencil.svg" alt="" />
+              <img :src="asset('assets/icons/pencil.svg')" alt="" />
             </button>
             <button class="btn-icon" type="button" title="设为专注任务" aria-label="设为专注任务" @click="wb.linkTaskToFocus(task.id, true)">
-              <img src="/assets/icons/play.svg" alt="" />
+              <img :src="asset('assets/icons/play.svg')" alt="" />
             </button>
             <button class="btn-icon is-danger" type="button" title="删除任务" aria-label="删除任务" @click="wb.deleteTodo(task.id)">
-              <img src="/assets/icons/trash.svg" alt="" />
+              <img :src="asset('assets/icons/trash.svg')" alt="" />
             </button>
           </div>
         </li>
@@ -178,11 +179,11 @@ function label(task) {
            to end two thirds of the way up a large screen, leaving the rest as bare background. -->
       <div v-if="rows.length" class="list-foot">
         <p class="foot-note">
-          <img src="/assets/icons/lightbulb.svg" alt="" />
+          <img :src="asset('assets/icons/lightbulb.svg')" alt="" />
           一句话也可以创建任务。试试「明天下午三点交周报」。
         </p>
         <button class="btn btn-soft btn-sm" type="button" @click="emit('new-task')">
-          <img src="/assets/icons/plus.svg" alt="" />新建任务
+          <img :src="asset('assets/icons/plus.svg')" alt="" />新建任务
         </button>
       </div>
     </section>

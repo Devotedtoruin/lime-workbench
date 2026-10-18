@@ -1,5 +1,6 @@
 <script setup>
 import { computed, reactive, ref, watch } from 'vue';
+import { asset } from '../lib/assets.js';
 import { useWorkbench } from '../composables/useWorkbench.js';
 import { readLocalImage } from '../../js/media.js';
 import { DEFAULT_AGENT, loadAgentConfig, saveAgentConfig, validateAgentConfig, isLLMReady, checkAgentConnection } from '../../js/agent.js';
@@ -237,7 +238,7 @@ function clearData() {
       <div class="identity-row">
         <span class="identity-avatar" :class="{ 'has-image': identity.avatarImage }">
           <img v-if="identity.avatarImage" :src="identity.avatarImage" alt="头像预览" />
-          <img v-else-if="!hasIdentityDraft" class="identity-avatar-placeholder" src="/assets/icons/circle-user-round.svg" alt="" />
+          <img v-else-if="!hasIdentityDraft" class="identity-avatar-placeholder" :src="asset('assets/icons/circle-user-round.svg')" alt="" />
           <template v-else>{{ identity.avatar.trim() || identity.displayName.trim().slice(0, 1) || '我' }}</template>
         </span>
         <div class="identity-copy">
@@ -246,7 +247,7 @@ function clearData() {
           <small v-else>还没有设置称呼和头像，首页只显示通用问候；设置后会显示在侧边栏与顶栏。</small>
           <div class="identity-actions">
             <label class="btn btn-soft btn-sm file-btn">
-              <img src="/assets/icons/upload.svg" alt="" />
+              <img :src="asset('assets/icons/upload.svg')" alt="" />
               {{ avatarBusy ? '处理中…' : '选择头像图片' }}
               <input ref="avatarInput" type="file" accept="image/png,image/jpeg,image/webp" hidden @change="pickAvatar" />
             </label>
@@ -274,7 +275,7 @@ function clearData() {
       <p class="tiny">图片优先，文字作回退。支持 PNG、JPEG、WebP，头像会自动压缩为 256px 并为本地保存。</p>
       <div class="actions-row">
         <button class="btn btn-primary" type="button" @click="saveIdentity">
-          <img src="/assets/icons/check.svg" alt="" />保存名称与形象
+          <img :src="asset('assets/icons/check.svg')" alt="" />保存名称与形象
         </button>
       </div>
     </section>
@@ -312,7 +313,7 @@ function clearData() {
           :class="{ 'is-active': wb.appearance.theme === t.id }"
           @click="wb.updateAppearance({ theme: t.id })"
         >
-          <img :src="`/assets/icons/${t.icon}.svg`" alt="" />
+          <img :src="asset(`assets/icons/${t.icon}.svg`)" alt="" />
           {{ t.name }}
         </button>
       </div>
@@ -394,7 +395,7 @@ function clearData() {
         </div>
         <div class="wallpaper-actions">
           <label class="btn btn-soft btn-sm file-btn">
-            <img src="/assets/icons/upload.svg" alt="" />
+            <img :src="asset('assets/icons/upload.svg')" alt="" />
             {{ bgBusy ? '处理中…' : '选择壁纸' }}
             <input ref="bgInput" type="file" accept="image/png,image/jpeg,image/webp" hidden @change="pickBackground" />
           </label>
@@ -497,10 +498,10 @@ function clearData() {
       <p class="tiny">当前数据保存在这个浏览器的本地存储。备份只包含工作台记录，不包含 AI Key 或外观偏好。</p>
       <div class="actions-row">
         <button class="btn btn-soft btn-sm" type="button" @click="wb.exportBackupData()">
-          <img src="/assets/icons/download.svg" alt="" />导出备份
+          <img :src="asset('assets/icons/download.svg')" alt="" />导出备份
         </button>
         <label class="btn btn-soft btn-sm file-btn">
-          <img src="/assets/icons/upload.svg" alt="" />导入备份
+          <img :src="asset('assets/icons/upload.svg')" alt="" />导入备份
           <input ref="importFile" type="file" accept="application/json" hidden @change="onImport" />
         </label>
         <button class="btn btn-ghost btn-sm btn-danger-text" type="button" @click="clearData">清空本机数据</button>

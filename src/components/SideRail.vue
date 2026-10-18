@@ -1,5 +1,6 @@
 <script setup>
 import { computed } from 'vue';
+import { asset } from '../lib/assets.js';
 import { useWorkbench } from '../composables/useWorkbench.js';
 
 const wb = useWorkbench();
@@ -47,7 +48,7 @@ function navigate(page) {
     <!-- 品牌 -->
     <a class="rail-brand" href="#home" aria-label="返回今天" @click.prevent="navigate('home')">
       <span class="rail-mark">
-        <img src="/assets/brand.svg" alt="" />
+        <img :src="asset('assets/brand.svg')" alt="" />
       </span>
       <span class="rail-brand-copy">
         <strong>{{ wb.workspaceName.value }}</strong>
@@ -67,7 +68,7 @@ function navigate(page) {
         :title="wb.railCollapsed.value ? item.label : undefined"
         @click="navigate(item.page)"
       >
-        <img :src="`/assets/icons/${item.icon}.svg`" alt="" />
+        <img :src="asset(`assets/icons/${item.icon}.svg`)" alt="" />
         <span class="rail-label">{{ item.label }}</span>
         <span
           v-if="item.page === 'todo' && wb.state.todos.filter(t => !t.done).length"
@@ -86,7 +87,7 @@ function navigate(page) {
         :title="wb.railCollapsed.value ? item.label : undefined"
         @click="navigate(item.page)"
       >
-        <img :src="`/assets/icons/${item.icon}.svg`" alt="" />
+        <img :src="asset(`assets/icons/${item.icon}.svg`)" alt="" />
         <span class="rail-label">{{ item.label }}</span>
       </button>
 
@@ -99,7 +100,7 @@ function navigate(page) {
         title="设置与美化"
         @click="navigate('me')"
       >
-        <img src="/assets/icons/settings.svg" alt="" />
+        <img :src="asset('assets/icons/settings.svg')" alt="" />
         <span class="rail-label">设置</span>
       </button>
     </nav>
@@ -109,7 +110,7 @@ function navigate(page) {
       <button class="rail-user" type="button" title="设置头像与称呼" @click="navigate('me')">
         <span class="rail-avatar" aria-hidden="true">
           <img v-if="wb.userAvatar.value.kind === 'image'" :src="wb.userAvatar.value.value" alt="" />
-          <img v-else-if="!hasIdentity" class="rail-avatar-placeholder" src="/assets/icons/circle-user-round.svg" alt="" />
+          <img v-else-if="!hasIdentity" class="rail-avatar-placeholder" :src="asset('assets/icons/circle-user-round.svg')" alt="" />
           <template v-else>{{ wb.userAvatar.value.value }}</template>
         </span>
         <span class="rail-user-copy">
@@ -126,7 +127,7 @@ function navigate(page) {
           :title="wb.appearance.theme === 'dark' ? '浅色外观' : '深色外观'"
           @click="wb.toggleDarkTheme()"
         >
-          <img :src="`/assets/icons/${wb.appearance.theme === 'dark' ? 'sun-medium' : 'moon'}.svg`" alt="" />
+          <img :src="asset(`assets/icons/${wb.appearance.theme === 'dark' ? 'sun-medium' : 'moon'}.svg`)" alt="" />
         </button>
         <button
           class="btn-icon rail-tool"
@@ -137,7 +138,7 @@ function navigate(page) {
           @click="wb.toggleRailCollapsed()"
         >
           <img
-            src="/assets/icons/panel-left.svg"
+            :src="asset('assets/icons/panel-left.svg')"
             alt=""
             :style="{ transform: wb.railCollapsed.value ? 'rotate(180deg)' : 'none', transition: 'transform 220ms var(--ease-spring)' }"
           />
@@ -148,7 +149,7 @@ function navigate(page) {
           aria-label="关闭导航"
           @click="wb.mobileDrawerOpen.value = false"
         >
-          <img src="/assets/icons/x.svg" alt="" />
+          <img :src="asset('assets/icons/x.svg')" alt="" />
         </button>
       </div>
     </div>

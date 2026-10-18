@@ -1,5 +1,6 @@
 <script setup>
 import { computed, reactive } from 'vue';
+import { asset } from '../lib/assets.js';
 import { useWorkbench, SPORTS } from '../composables/useWorkbench.js';
 
 const wb = useWorkbench();
@@ -47,7 +48,7 @@ function sportOf(type) { return SPORTS.find(s => s.id === type) || SPORTS[0]; }
         <h1>运动记录</h1>
         <p class="sub">记录单次运动的时长与距离；每日总步数在生活习惯中更新。</p>
       </div>
-      <span class="privacy"><img src="/assets/icons/shield-check.svg" alt="" />手动记录 · 不采集传感器</span>
+      <span class="privacy"><img :src="asset('assets/icons/shield-check.svg')" alt="" />手动记录 · 不采集传感器</span>
     </header>
 
     <div class="sport-top">
@@ -55,7 +56,7 @@ function sportOf(type) { return SPORTS.find(s => s.id === type) || SPORTS[0]; }
         <div class="panel-head">
           <h2 class="panel-title">单次运动记录</h2>
           <button class="btn btn-text btn-sm" type="button" @click="wb.goto('habits')">
-            每日总步数<img src="/assets/icons/arrow-up-right.svg" alt="" />
+            每日总步数<img :src="asset('assets/icons/arrow-up-right.svg')" alt="" />
           </button>
         </div>
 
@@ -69,7 +70,7 @@ function sportOf(type) { return SPORTS.find(s => s.id === type) || SPORTS[0]; }
             :aria-pressed="form.type === sp.id"
             @click="form.type = sp.id"
           >
-            <img :src="`/assets/img/${sp.icon}.png`" alt="" />
+            <img :src="asset(`assets/img/${sp.icon}.png`)" alt="" />
             <span>{{ sp.label }}</span>
           </button>
         </div>
@@ -91,7 +92,7 @@ function sportOf(type) { return SPORTS.find(s => s.id === type) || SPORTS[0]; }
           </label>
           <button class="btn btn-primary" type="submit">保存运动</button>
         </form>
-        <p class="tiny"><img src="/assets/icons/info.svg" alt="" />卡路里仅为估算，不是健康或医疗建议。</p>
+        <p class="tiny"><img :src="asset('assets/icons/info.svg')" alt="" />卡路里仅为估算，不是健康或医疗建议。</p>
       </section>
 
       <section class="panel glass rim">
@@ -122,13 +123,13 @@ function sportOf(type) { return SPORTS.find(s => s.id === type) || SPORTS[0]; }
       </div>
       <ul v-else class="sport-list">
         <li v-for="r in recent" :key="r.id">
-          <span class="sport-ico"><img :src="`/assets/img/${sportOf(r.type).icon}.png`" alt="" /></span>
+          <span class="sport-ico"><img :src="asset(`assets/img/${sportOf(r.type).icon}.png`)" alt="" /></span>
           <div class="sport-copy">
             <strong>{{ sportOf(r.type).label }} · {{ r.minutes }} 分钟<template v-if="r.distance"> · {{ r.distance }} km</template></strong>
             <small>{{ r.date }} · 约 {{ kcalOf(r.type, r.minutes) }} 大卡</small>
           </div>
           <button class="btn-icon is-danger" type="button" aria-label="删除运动记录" @click="wb.deleteSportRecord(r.id)">
-            <img src="/assets/icons/trash.svg" alt="" />
+            <img :src="asset('assets/icons/trash.svg')" alt="" />
           </button>
         </li>
       </ul>

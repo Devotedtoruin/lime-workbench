@@ -1,5 +1,6 @@
 <script setup>
 import { computed, reactive, ref } from 'vue';
+import { asset } from '../lib/assets.js';
 import { useWorkbench } from '../composables/useWorkbench.js';
 import { PRESETS, TIMER_PRESETS } from '../../js/reminders.js';
 import { reviewFor, reviewHeadline } from '../../js/review.js';
@@ -92,11 +93,11 @@ function toggleSound() {
       </div>
       <div class="page-head-actions">
         <button class="btn btn-soft" type="button" :aria-pressed="wb.state.soundOn" @click="toggleSound">
-          <img :src="`/assets/icons/${wb.state.soundOn ? 'volume-2' : 'volume-x'}.svg`" alt="" />
+          <img :src="asset(`assets/icons/${wb.state.soundOn ? 'volume-2' : 'volume-x'}.svg`)" alt="" />
           提醒声 {{ wb.state.soundOn ? '开' : '关' }}
         </button>
         <button class="btn btn-primary" type="button" @click="emit('new-task', { id: '', text: '', date: selectedDate, time: '', priority: 'medium', tag: '个人计划' })">
-          <img src="/assets/icons/plus.svg" alt="" />添加任务
+          <img :src="asset('assets/icons/plus.svg')" alt="" />添加任务
         </button>
       </div>
     </header>
@@ -105,9 +106,9 @@ function toggleSound() {
       <!-- 月历 -->
       <section class="panel glass rim cal-panel">
         <div class="cal-head">
-          <button class="btn-icon" type="button" aria-label="上个月" @click="prevMonth"><img src="/assets/icons/chevron-left.svg" alt="" /></button>
+          <button class="btn-icon" type="button" aria-label="上个月" @click="prevMonth"><img :src="asset('assets/icons/chevron-left.svg')" alt="" /></button>
           <strong>{{ monthLabel }}</strong>
-          <button class="btn-icon" type="button" aria-label="下个月" @click="nextMonth"><img src="/assets/icons/chevron-right.svg" alt="" /></button>
+          <button class="btn-icon" type="button" aria-label="下个月" @click="nextMonth"><img :src="asset('assets/icons/chevron-right.svg')" alt="" /></button>
         </div>
         <div class="cal-grid">
           <span v-for="w in ['日', '一', '二', '三', '四', '五', '六']" :key="w" class="cal-week">{{ w }}</span>
@@ -130,7 +131,7 @@ function toggleSound() {
           <div class="cal-day-head">
             <h2 class="cal-day-title">{{ selectedLabel }}</h2>
             <button class="btn btn-text btn-sm" type="button" @click="addTaskOnSelected">
-              <img src="/assets/icons/plus.svg" alt="" />在这一天添加任务
+              <img :src="asset('assets/icons/plus.svg')" alt="" />在这一天添加任务
             </button>
           </div>
           <div v-if="!dayTasks.length" class="empty" style="padding: 20px">
@@ -139,7 +140,7 @@ function toggleSound() {
           </div>
           <ul v-else class="cal-tasks">
             <li v-for="task in dayTasks" :key="task.id">
-              <img :src="`/assets/icons/${task.done ? 'circle-check' : 'clock-3'}.svg`" alt="" />
+              <img :src="asset(`assets/icons/${task.done ? 'circle-check' : 'clock-3'}.svg`)" alt="" />
               <span :class="{ done: task.done }">{{ task.text }}</span>
               <em>{{ task.time || '全天' }}</em>
             </li>
@@ -161,7 +162,7 @@ function toggleSound() {
                 <p class="review-label">完成</p>
                 <ul>
                   <li v-for="t in [...review.completed, ...review.finishedElsewhere]" :key="t.id" class="is-done">
-                    <img src="/assets/icons/circle-check.svg" alt="" />{{ t.text }}
+                    <img :src="asset('assets/icons/circle-check.svg')" alt="" />{{ t.text }}
                   </li>
                 </ul>
               </div>
@@ -170,7 +171,7 @@ function toggleSound() {
                 <p class="review-label">未完成</p>
                 <ul>
                   <li v-for="t in review.open" :key="t.id">
-                    <img src="/assets/icons/clock-3.svg" alt="" />{{ t.text }}
+                    <img :src="asset('assets/icons/clock-3.svg')" alt="" />{{ t.text }}
                     <em>{{ t.time || '全天' }}</em>
                   </li>
                 </ul>
@@ -224,7 +225,7 @@ function toggleSound() {
           <div class="panel-head"><h2 class="panel-title">周期提醒</h2></div>
           <div class="preset-chips">
             <button v-for="p in PRESETS" :key="p.id" class="preset-chip" type="button" @click="wb.addIntervalReminder(p.id, p.every)">
-              <img :src="`/assets/img/${p.icon}.png`" alt="" />
+              <img :src="asset(`assets/img/${p.icon}.png`)" alt="" />
               <span>{{ p.label }}</span>
               <em>每 {{ p.every }} 分</em>
             </button>
@@ -241,7 +242,7 @@ function toggleSound() {
           <div class="panel-head"><h2 class="panel-title">倒计时</h2></div>
           <div class="preset-chips">
             <button v-for="p in TIMER_PRESETS" :key="p.id" class="preset-chip timer" type="button" @click="wb.addCountdownTimer(p.id, p.minutes)">
-              <img :src="`/assets/img/${p.icon}.png`" alt="" />
+              <img :src="asset(`assets/img/${p.icon}.png`)" alt="" />
               <span>{{ p.label }}</span>
               <em>{{ p.minutes }} 分</em>
             </button>
@@ -265,7 +266,7 @@ function toggleSound() {
       <ul v-else class="rem-list">
         <li v-for="r in wb.state.reminders" :key="r.id" class="rem-card" :class="{ completed: r.completed }">
           <span class="rem-icon" :style="{ '--tone': r.color || 'var(--brand)' }">
-            <img :src="`/assets/img/${r.icon || 'bell'}.png`" alt="" />
+            <img :src="asset(`assets/img/${r.icon || 'bell'}.png`)" alt="" />
           </span>
           <div class="rem-copy">
             <strong>{{ r.label }}</strong>
@@ -281,10 +282,10 @@ function toggleSound() {
               :aria-label="r.enabled ? '暂停提醒' : '继续提醒'"
               @click="wb.toggleReminderPause(r.id)"
             >
-              <img :src="`/assets/icons/${r.enabled ? 'pause' : 'play'}.svg`" alt="" />
+              <img :src="asset(`assets/icons/${r.enabled ? 'pause' : 'play'}.svg`)" alt="" />
             </button>
             <button class="btn-icon is-danger" type="button" title="删除提醒" aria-label="删除提醒" @click="wb.deleteReminderById(r.id)">
-              <img src="/assets/icons/trash.svg" alt="" />
+              <img :src="asset('assets/icons/trash.svg')" alt="" />
             </button>
           </div>
         </li>

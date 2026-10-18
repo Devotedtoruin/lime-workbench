@@ -1,5 +1,6 @@
 <script setup>
 import { computed, reactive, ref } from 'vue';
+import { asset } from '../lib/assets.js';
 import { useWorkbench } from '../composables/useWorkbench.js';
 import { CATEGORIES, categoryIcon } from '../../js/command.js';
 
@@ -61,7 +62,7 @@ function catName(c) { return (c || '').slice(2).trim() || '未分类'; }
         <p class="sub">记录办公支出与收入，查看分类和收支变化。</p>
       </div>
       <button class="btn btn-primary" type="button" @click="wb.openLedgerDialog()">
-        <img src="/assets/icons/plus.svg" alt="" />记一笔
+        <img :src="asset('assets/icons/plus.svg')" alt="" />记一笔
       </button>
     </header>
 
@@ -112,7 +113,7 @@ function catName(c) { return (c || '').slice(2).trim() || '未分类'; }
             :class="{ 'is-active': form.cat === c }"
             @click="form.cat = c"
           >
-            <img :src="`/assets/icons/${categoryIcon(c)}.svg`" alt="" />
+            <img :src="asset(`assets/icons/${categoryIcon(c)}.svg`)" alt="" />
             <span>{{ c.slice(2).trim() }}</span>
           </button>
         </div>
@@ -138,14 +139,14 @@ function catName(c) { return (c || '').slice(2).trim() || '未分类'; }
       </div>
       <ul v-else class="ledger-list">
         <li v-for="r in filtered" :key="r.id">
-          <span class="ledger-cat"><img :src="`/assets/icons/${categoryIcon(r.cat)}.svg`" alt="" /></span>
+          <span class="ledger-cat"><img :src="asset(`assets/icons/${categoryIcon(r.cat)}.svg`)" alt="" /></span>
           <div class="ledger-copy">
             <strong>{{ r.note }}</strong>
             <small>{{ r.date }} · {{ catName(r.cat) }}</small>
           </div>
           <span class="ledger-amount numeric" :class="r.type">{{ r.type === 'income' ? '+' : '-' }}{{ money(r.amount) }}</span>
           <button class="btn-icon is-danger" type="button" aria-label="删除账目" @click="wb.deleteLedgerRecord(r.id)">
-            <img src="/assets/icons/trash.svg" alt="" />
+            <img :src="asset('assets/icons/trash.svg')" alt="" />
           </button>
         </li>
       </ul>

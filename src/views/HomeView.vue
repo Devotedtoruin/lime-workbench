@@ -1,5 +1,6 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { asset } from '../lib/assets.js';
 import { useWorkbench } from '../composables/useWorkbench.js';
 import { burstFrom } from '../lib/effects.js';
 import AnimatedNumber from '../components/AnimatedNumber.vue';
@@ -243,7 +244,7 @@ function taskTime(task) {
         />
         <div class="split-wrap" :class="{ 'is-open': splitOpen }">
           <button class="btn btn-primary split-main" type="submit">
-            <img src="/assets/icons/plus.svg" alt="" />添加
+            <img :src="asset('assets/icons/plus.svg')" alt="" />添加
           </button>
           <button
             class="btn btn-primary split-caret"
@@ -252,7 +253,7 @@ function taskTime(task) {
             :aria-expanded="splitOpen"
             @click="toggleSplit"
           >
-            <img src="/assets/icons/chevron-down.svg" alt="" />
+            <img :src="asset('assets/icons/chevron-down.svg')" alt="" />
           </button>
           <div v-if="splitOpen" class="split-menu glass rim" role="menu">
             <button
@@ -262,7 +263,7 @@ function taskTime(task) {
               role="menuitem"
               @click="runMenu(item)"
             >
-              <img :src="`/assets/icons/${item.icon}.svg`" alt="" />
+              <img :src="asset(`assets/icons/${item.icon}.svg`)" alt="" />
               <span>{{ item.label }}<small v-if="item.hint">{{ item.hint }}</small></span>
             </button>
           </div>
@@ -284,7 +285,7 @@ function taskTime(task) {
         @click="kpi.run?.()"
       >
         <span class="kpi-top">
-          <span class="icon-tile" :class="kpi.tone"><img :src="`/assets/icons/${kpi.icon}.svg`" alt="" /></span>
+          <span class="icon-tile" :class="kpi.tone"><img :src="asset(`assets/icons/${kpi.icon}.svg`)" alt="" /></span>
           <span class="kpi-label">{{ kpi.label }}</span>
           <button
             v-if="kpi.action"
@@ -310,12 +311,12 @@ function taskTime(task) {
     <!-- 模块工具条 -->
     <div class="blocks-bar">
       <p class="blocks-hint">
-        <img src="/assets/icons/layout-dashboard.svg" alt="" />
+        <img :src="asset('assets/icons/layout-dashboard.svg')" alt="" />
         模块积木 · 可拖拽排序、切换宽窄、在设置中显隐
       </p>
       <div class="blocks-actions">
         <button class="btn btn-ghost btn-sm" type="button" @click="wb.layoutEditing.value = !wb.layoutEditing.value">
-          <img src="/assets/icons/sliders-horizontal.svg" alt="" />
+          <img :src="asset('assets/icons/sliders-horizontal.svg')" alt="" />
           {{ wb.layoutEditing.value ? '完成编辑' : '自定义布局' }}
         </button>
         <button v-if="wb.layoutEditing.value" class="btn btn-ghost btn-sm" type="button" @click="wb.resetBlocks()">恢复默认</button>
@@ -341,7 +342,7 @@ function taskTime(task) {
       >
         <div v-if="wb.layoutEditing.value" class="block-tools">
           <span class="drag-handle" title="拖拽排序">
-            <img src="/assets/icons/arrow-down-up.svg" alt="" />拖拽
+            <img :src="asset('assets/icons/arrow-down-up.svg')" alt="" />拖拽
           </span>
           <button class="btn btn-ghost btn-sm" type="button" @click="wb.moveBlock(block.id, -1)" aria-label="前移">↑</button>
           <button class="btn btn-ghost btn-sm" type="button" @click="wb.moveBlock(block.id, 1)" aria-label="后移">↓</button>
@@ -354,12 +355,12 @@ function taskTime(task) {
         <section v-if="block.id === 'tasks'" class="panel glass rim card">
           <div class="panel-head">
             <h2 class="panel-title">
-              <img src="/assets/icons/list-checks.svg" alt="" />今日任务
+              <img :src="asset('assets/icons/list-checks.svg')" alt="" />今日任务
               <span class="badge">{{ todayTasks.length }}</span>
             </h2>
             <div class="panel-actions">
               <button class="btn btn-text btn-sm" type="button" @click="wb.goto('todo', 'all')">
-                全部计划<img src="/assets/icons/arrow-up-right.svg" alt="" />
+                全部计划<img :src="asset('assets/icons/arrow-up-right.svg')" alt="" />
               </button>
             </div>
           </div>
@@ -380,7 +381,7 @@ function taskTime(task) {
                 :aria-pressed="task.done"
                 @click="completeTask(task, $event)"
               >
-                <img src="/assets/icons/check.svg" alt="" />
+                <img :src="asset('assets/icons/check.svg')" alt="" />
               </button>
               <div class="agenda-copy">
                 <strong>{{ task.text }}</strong>
@@ -393,13 +394,13 @@ function taskTime(task) {
               </div>
               <span class="agenda-actions">
                 <button class="btn-icon" type="button" title="设为专注任务" :aria-label="`专注${task.text}`" @click="wb.linkTaskToFocus(task.id, true)">
-                  <img src="/assets/icons/play.svg" alt="" />
+                  <img :src="asset('assets/icons/play.svg')" alt="" />
                 </button>
                 <button class="btn-icon" type="button" title="编辑任务" :aria-label="`编辑${task.text}`" @click="emit('new-task', task)">
-                  <img src="/assets/icons/pencil.svg" alt="" />
+                  <img :src="asset('assets/icons/pencil.svg')" alt="" />
                 </button>
                 <button class="btn-icon is-danger" type="button" title="删除任务" :aria-label="`删除${task.text}`" @click="wb.deleteTodo(task.id)">
-                  <img src="/assets/icons/trash.svg" alt="" />
+                  <img :src="asset('assets/icons/trash.svg')" alt="" />
                 </button>
               </span>
             </article>
@@ -417,7 +418,7 @@ function taskTime(task) {
           <div class="panel-head">
             <span class="focus-kicker"><i aria-hidden="true"></i>专注</span>
             <button class="btn-icon" type="button" title="设置专注时长" @click="wb.goto('study')">
-              <img src="/assets/icons/sliders-horizontal.svg" alt="" />
+              <img :src="asset('assets/icons/sliders-horizontal.svg')" alt="" />
             </button>
           </div>
           <p class="focus-clock numeric">{{ wb.focusClockText.value }}</p>
@@ -428,7 +429,7 @@ function taskTime(task) {
               :aria-label="wb.state.focus.running ? '暂停专注' : '开始专注'"
               @click="toggleFocus"
             >
-              <img :src="`/assets/icons/${wb.state.focus.running ? 'pause' : 'play'}.svg`" alt="" />
+              <img :src="asset(`assets/icons/${wb.state.focus.running ? 'pause' : 'play'}.svg`)" alt="" />
             </button>
             <span class="focus-label">{{ wb.linkedFocusTask.value?.text || wb.state.focus.text || '选择任务，或写下这段要做的事' }}</span>
           </div>
@@ -464,10 +465,10 @@ function taskTime(task) {
         <!-- 工作便签（瀑布流） -->
         <section v-else-if="block.id === 'notes'" class="panel glass rim card notes-panel">
           <div class="panel-head">
-            <h2 class="panel-title"><img src="/assets/icons/sticky-note.svg" alt="" />工作便签 <span class="badge">{{ wb.state.notes.length }}</span></h2>
+            <h2 class="panel-title"><img :src="asset('assets/icons/sticky-note.svg')" alt="" />工作便签 <span class="badge">{{ wb.state.notes.length }}</span></h2>
             <div class="panel-actions">
               <button class="btn btn-text btn-sm" type="button" @click="startNote()">
-                <img src="/assets/icons/plus.svg" alt="" />新建
+                <img :src="asset('assets/icons/plus.svg')" alt="" />新建
               </button>
             </div>
           </div>
@@ -496,10 +497,10 @@ function taskTime(task) {
                   <h4>{{ note.title }}</h4>
                   <span class="note-tools">
                     <button class="btn-icon btn-xs" type="button" aria-label="编辑便签" @click="startNote(note)">
-                      <img src="/assets/icons/pencil.svg" alt="" />
+                      <img :src="asset('assets/icons/pencil.svg')" alt="" />
                     </button>
                     <button class="btn-icon btn-xs is-danger" type="button" aria-label="删除便签" @click="wb.removeNoteRecord(note.id)">
-                      <img src="/assets/icons/trash.svg" alt="" />
+                      <img :src="asset('assets/icons/trash.svg')" alt="" />
                     </button>
                   </span>
                 </div>
@@ -512,9 +513,9 @@ function taskTime(task) {
         <!-- 工作链接 -->
         <section v-else-if="block.id === 'links'" class="panel glass rim card workspace-links">
           <div class="panel-head">
-            <h2 class="panel-title"><img src="/assets/icons/arrow-up-right.svg" alt="" />工作链接 <span class="badge">{{ wb.state.links.length }}</span></h2>
+            <h2 class="panel-title"><img :src="asset('assets/icons/arrow-up-right.svg')" alt="" />工作链接 <span class="badge">{{ wb.state.links.length }}</span></h2>
             <button class="btn btn-text btn-sm" type="button" @click="linkDraft.open ? (linkDraft.open = false) : startLink()">
-              <img src="/assets/icons/plus.svg" alt="" />添加
+              <img :src="asset('assets/icons/plus.svg')" alt="" />添加
             </button>
           </div>
 
@@ -553,7 +554,7 @@ function taskTime(task) {
                 <small>{{ hostOf(link.url) }}</small>
               </span>
               <button class="btn-icon btn-xs is-danger link-del" type="button" aria-label="删除链接" @click.prevent.stop="wb.removeLinkRecord(link.id)">
-                <img src="/assets/icons/trash.svg" alt="" />
+                <img :src="asset('assets/icons/trash.svg')" alt="" />
               </button>
             </a>
           </div>
@@ -564,7 +565,7 @@ function taskTime(task) {
           <div class="panel-head">
             <h2 class="panel-title">本月收支</h2>
             <button class="btn btn-text btn-sm" type="button" @click="wb.goto('ledger')">
-              记一笔<img src="/assets/icons/arrow-up-right.svg" alt="" />
+              记一笔<img :src="asset('assets/icons/arrow-up-right.svg')" alt="" />
             </button>
           </div>
           <div class="month-grid">

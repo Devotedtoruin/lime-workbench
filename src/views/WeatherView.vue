@@ -1,5 +1,6 @@
 <script setup>
 import { ref } from 'vue';
+import { asset } from '../lib/assets.js';
 import { useWorkbench } from '../composables/useWorkbench.js';
 import { useWeather } from '../composables/useWeather.js';
 
@@ -23,7 +24,7 @@ function searchCity() {
         <h1>天气与通勤</h1>
         <p class="sub">只在需要时读取位置；也可以手动选择城市。</p>
       </div>
-      <span class="privacy"><img src="/assets/icons/map-pin.svg" alt="" />位置只用于天气查询</span>
+      <span class="privacy"><img :src="asset('assets/icons/map-pin.svg')" alt="" />位置只用于天气查询</span>
     </header>
 
     <section class="panel glass rim weather-hero" :aria-busy="weather.busy.value">
@@ -39,7 +40,7 @@ function searchCity() {
       </div>
       <div class="weather-controls">
         <button class="btn btn-soft" type="button" :disabled="weather.busy.value" @click="weather.locate()">
-          <img src="/assets/icons/locate.svg" alt="" />使用当前位置
+          <img :src="asset('assets/icons/locate.svg')" alt="" />使用当前位置
         </button>
         <form class="city-search" @submit.prevent="searchCity">
           <input v-model="cityInput" class="input" maxlength="100" placeholder="搜索城市，如 杭州" aria-label="搜索城市" />
@@ -54,7 +55,7 @@ function searchCity() {
         <div class="panel-head"><h2 class="panel-title">出门前提醒</h2></div>
         <ul v-if="weather.weatherData.tips.length" class="tips">
           <li v-for="(tip, i) in weather.weatherData.tips" :key="i">
-            <img :src="`/assets/img/${tip.icon || 'sun'}.png`" alt="" />
+            <img :src="asset(`assets/img/${tip.icon || 'sun'}.png`)" alt="" />
             <span>{{ tip.text }}</span>
           </li>
         </ul>

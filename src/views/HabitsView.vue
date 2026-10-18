@@ -1,5 +1,6 @@
 <script setup>
 import { computed, reactive, ref } from 'vue';
+import { asset } from '../lib/assets.js';
 import { useWorkbench } from '../composables/useWorkbench.js';
 import { HABIT_ICONS, isDone, streakOf, recentDays } from '../../js/habits.js';
 import ProgressRing from '../components/ProgressRing.vue';
@@ -74,7 +75,7 @@ function streakText(habit) {
         <p class="sub">记录每日饮水与总步数，配合工作间歇安排活动。</p>
       </div>
       <button class="btn btn-soft" type="button" @click="wb.goto('calendar')">
-        <img src="/assets/icons/bell.svg" alt="" />设置提醒
+        <img :src="asset('assets/icons/bell.svg')" alt="" />设置提醒
       </button>
     </header>
 
@@ -98,7 +99,7 @@ function streakText(habit) {
           <button class="btn btn-soft btn-sm" type="button" @click="wb.addWater(250)">+250 ml</button>
           <button class="btn btn-soft btn-sm" type="button" @click="wb.addWater(500)">+500 ml</button>
           <button class="btn btn-ghost btn-sm" type="button" @click="wb.undoWater()">
-            <img src="/assets/icons/rotate-ccw.svg" alt="" />撤销
+            <img :src="asset('assets/icons/rotate-ccw.svg')" alt="" />撤销
           </button>
         </div>
         <form class="custom-water" @submit.prevent="addCustomWater">
@@ -113,7 +114,7 @@ function streakText(habit) {
         <div class="panel-head">
           <h2 class="panel-title">每日总步数</h2>
           <button class="btn btn-text btn-sm" type="button" @click="wb.goto('sport')">
-            单次运动<img src="/assets/icons/arrow-up-right.svg" alt="" />
+            单次运动<img :src="asset('assets/icons/arrow-up-right.svg')" alt="" />
           </button>
         </div>
         <div class="habit-main">
@@ -141,7 +142,7 @@ function streakText(habit) {
             今日 {{ wb.habitToday.value.done }}/{{ wb.habitToday.value.total }}
           </span>
           <button class="btn btn-soft btn-sm" type="button" @click="toggleHabitForm">
-            <img src="/assets/icons/plus.svg" alt="" />{{ formOpen ? '收起' : '添加习惯' }}
+            <img :src="asset('assets/icons/plus.svg')" alt="" />{{ formOpen ? '收起' : '添加习惯' }}
           </button>
         </div>
       </div>
@@ -168,7 +169,7 @@ function streakText(habit) {
               :aria-pressed="draft.icon === ic"
               @click="draft.icon = ic"
             >
-              <img :src="`/assets/icons/${ic}.svg`" alt="" />
+              <img :src="asset(`assets/icons/${ic}.svg`)" alt="" />
             </button>
           </div>
         </div>
@@ -191,10 +192,10 @@ function streakText(habit) {
             :aria-pressed="isHabitDone(habit)"
             @click="wb.checkInHabit(habit.id)"
           >
-            <img src="/assets/icons/check.svg" alt="" />
+            <img :src="asset('assets/icons/check.svg')" alt="" />
           </button>
 
-          <span class="habit-icon"><img :src="`/assets/icons/${habit.icon}.svg`" alt="" /></span>
+          <span class="habit-icon"><img :src="asset(`assets/icons/${habit.icon}.svg`)" alt="" /></span>
 
           <div class="habit-copy">
             <strong>{{ habit.name }}</strong>
@@ -215,7 +216,7 @@ function streakText(habit) {
           </div>
 
           <button class="btn-icon is-danger habit-del" type="button" :aria-label="`删除 ${habit.name}`" @click="removeHabit(habit)">
-            <img src="/assets/icons/trash.svg" alt="" />
+            <img :src="asset('assets/icons/trash.svg')" alt="" />
           </button>
         </li>
       </ul>

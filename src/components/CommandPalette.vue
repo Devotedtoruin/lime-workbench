@@ -1,5 +1,6 @@
 <script setup>
 import { computed, nextTick, ref, watch } from 'vue';
+import { asset } from '../lib/assets.js';
 import { useWorkbench } from '../composables/useWorkbench.js';
 import { understand, askLLM, normalizeAction, isLLMReady, loadAgentConfig, resolveAgentEndpoint } from '../../js/agent.js';
 import { preview } from '../../js/command.js';
@@ -114,7 +115,7 @@ function onKeydown(event) {
     <div v-if="open" class="overlay command-overlay" @click.self="close">
       <section class="command glass rim" role="dialog" aria-modal="true" aria-label="快捷命令">
         <div class="command-row">
-          <img src="/assets/icons/search.svg" alt="" />
+          <img :src="asset('assets/icons/search.svg')" alt="" />
           <input
             ref="inputEl"
             v-model="input"
@@ -125,7 +126,7 @@ function onKeydown(event) {
             @keydown="onKeydown"
           />
           <button class="btn-icon" type="button" aria-label="关闭" @click="close">
-            <img src="/assets/icons/x.svg" alt="" />
+            <img :src="asset('assets/icons/x.svg')" alt="" />
           </button>
         </div>
 
@@ -139,7 +140,7 @@ function onKeydown(event) {
           </div>
 
           <div v-else-if="intent" class="command-preview">
-            <span class="icon-tile tile-soft"><img src="/assets/icons/sparkles.svg" alt="" /></span>
+            <span class="icon-tile tile-soft"><img :src="asset('assets/icons/sparkles.svg')" alt="" /></span>
             <div class="preview-copy">
               <strong>{{ preview(intent) }}</strong>
               <small>本地解析 · 确认后写入工作台</small>
@@ -147,7 +148,7 @@ function onKeydown(event) {
             <div class="preview-actions">
               <button class="btn btn-soft btn-sm" type="button" @click="close">取消</button>
               <button class="btn btn-primary btn-sm" type="button" @click="execute">
-                <img src="/assets/icons/check.svg" alt="" />确认
+                <img :src="asset('assets/icons/check.svg')" alt="" />确认
               </button>
             </div>
           </div>
@@ -169,7 +170,7 @@ function onKeydown(event) {
                 <strong>{{ item.title }}</strong>
                 <small>{{ item.meta }}</small>
               </span>
-              <img src="/assets/icons/arrow-up-right.svg" alt="" />
+              <img :src="asset('assets/icons/arrow-up-right.svg')" alt="" />
             </button>
           </div>
 

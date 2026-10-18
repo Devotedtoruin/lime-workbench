@@ -1,5 +1,6 @@
 <script setup>
 import { computed, ref } from 'vue';
+import { asset } from '../lib/assets.js';
 import { useWorkbench } from '../composables/useWorkbench.js';
 import { rangeSummary, heatmapWeeks, focusStreak } from '../../js/focus-stats.js';
 
@@ -56,7 +57,7 @@ function applyIntent() {
         <p class="sub">为会议准备、周报和文档工作设定专注时段。</p>
       </div>
       <button class="btn btn-soft" type="button" @click="applyMinutes(Math.round(wb.state.focus.total / 60))">
-        <img src="/assets/icons/rotate-ccw.svg" alt="" />重置
+        <img :src="asset('assets/icons/rotate-ccw.svg')" alt="" />重置
       </button>
     </header>
 
@@ -87,7 +88,7 @@ function applyIntent() {
           type="button"
           @click="wb.toggleFocusTimer()"
         >
-          <img :src="`/assets/icons/${wb.state.focus.running ? 'pause' : 'play'}.svg`" alt="" />
+          <img :src="asset(`assets/icons/${wb.state.focus.running ? 'pause' : 'play'}.svg`)" alt="" />
           {{ wb.state.focus.running ? '暂停专注' : '开始专注' }}
         </button>
         <form class="hero-custom" @submit.prevent="applyMinutes(customMinutes)">
@@ -120,7 +121,7 @@ function applyIntent() {
       </label>
 
       <div class="linked-task" v-if="wb.linkedFocusTask.value">
-        <span class="icon-tile tile-soft"><img src="/assets/icons/list-checks.svg" alt="" /></span>
+        <span class="icon-tile tile-soft"><img :src="asset('assets/icons/list-checks.svg')" alt="" /></span>
         <div>
           <strong>{{ wb.linkedFocusTask.value.text }}</strong>
           <small>关联任务 · 到点后可选择完成</small>

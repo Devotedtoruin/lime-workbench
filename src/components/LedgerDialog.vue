@@ -1,5 +1,6 @@
 <script setup>
 import { ref, watch } from 'vue';
+import { asset } from '../lib/assets.js';
 import { useWorkbench } from '../composables/useWorkbench.js';
 import { CATEGORIES, categoryIcon } from '../../js/command.js';
 
@@ -36,7 +37,7 @@ function submit() {
         <div class="modal-head">
           <h2>记一笔</h2>
           <button class="btn-icon" type="button" aria-label="关闭" @click="close">
-            <img src="/assets/icons/x.svg" alt="" />
+            <img :src="asset('assets/icons/x.svg')" alt="" />
           </button>
         </div>
 
@@ -80,7 +81,7 @@ function submit() {
               :class="{ 'is-active': cat === c }"
               @click="cat = c"
             >
-              <img :src="`/assets/icons/${categoryIcon(c)}.svg`" alt="" />
+              <img :src="asset(`assets/icons/${categoryIcon(c)}.svg`)" alt="" />
               <span>{{ c.slice(2).trim() }}</span>
             </button>
           </div>
@@ -88,7 +89,7 @@ function submit() {
           <div class="modal-actions">
             <button class="btn btn-soft" type="button" @click="close">取消</button>
             <button class="btn btn-primary" type="submit">
-              <img src="/assets/icons/check.svg" alt="" />保存记录
+              <img :src="asset('assets/icons/check.svg')" alt="" />保存记录
             </button>
           </div>
         </form>
