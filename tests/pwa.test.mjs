@@ -34,7 +34,16 @@ test('manifest and its icons live in public/ so Vite copies them unhashed', asyn
   }
 });
 
-test('the built dist keeps the manifest and icons at stable, unhashed URLs', async () => {
+test('the built dist keeps the manifest and icons at stable, unhashed URLs', async (t) => {
+  // `npm test` runs before `npm run build` in CI, so dist/ may not exist yet. Skip rather than
+  // fail: this assertion protects the build output, and it runs locally after a build.
+  const distIndex = new URL('dist/index.html', root);
+  try {
+    await stat(distIndex);
+  } catch {
+    t.skip('dist/ not built yet');
+    return;
+  }
   // The manifest's icon paths are relative to itself. Vite hashes assets by default, which
   // would move it to /assets/manifest-<hash>.webmanifest and break every icon path.
   const html = await read('dist/index.html');
