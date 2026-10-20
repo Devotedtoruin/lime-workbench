@@ -5,6 +5,7 @@ import { useWorkbench } from '../composables/useWorkbench.js';
 import { burstFrom } from '../lib/effects.js';
 import AnimatedNumber from '../components/AnimatedNumber.vue';
 import ProgressRing from '../components/ProgressRing.vue';
+import { reviewFor, reviewHeadline } from '../../js/review.js';
 import EmptyState from '../components/EmptyState.vue';
 
 const emit = defineEmits(['open-command', 'new-task']);
@@ -62,7 +63,7 @@ const kpis = computed(() => [
     id: 'study',
     label: '今日专注',
     icon: 'timer',
-    tone: 'tile-blue',
+    tone: 'tile-soft',
     value: wb.studyTodayMinutes.value,
     unit: '分钟',
     sub: `目标 60 分钟 · ${wb.studyPercent.value}%`,
@@ -73,7 +74,7 @@ const kpis = computed(() => [
     id: 'off',
     label: wb.offWorkStatus.value.kicker,
     icon: 'clock-3',
-    tone: 'tile-amber',
+    tone: 'tile-soft',
     value: wb.offWorkStatus.value.value,
     sub: wb.offWorkStatus.value.sub,
     quiet: wb.offWorkStatus.value.quiet,
@@ -84,7 +85,7 @@ const kpis = computed(() => [
     id: 'water',
     label: '饮水',
     icon: 'droplet',
-    tone: '',
+    tone: 'tile-soft',
     value: wb.waterTodayMl.value,
     unit: `/ ${wb.state.settings.waterGoal} ml`,
     sub: `完成 ${wb.waterPercent.value}%`,
@@ -95,12 +96,12 @@ const kpis = computed(() => [
     id: 'steps',
     label: '步数',
     icon: 'footprints',
-    tone: 'tile-violet',
+    tone: 'tile-soft',
     value: wb.stepsToday.value,
     unit: `/ ${wb.state.settings.stepGoal}`,
     sub: `完成 ${wb.stepsPercent.value}%`,
     ring: wb.stepsPercent.value,
-    toneRing: 'violet'
+    toneRing: 'brand'
   }
 ]);
 
@@ -206,6 +207,12 @@ const spark = computed(() => {
 /* 提醒 next */
 const nextUpcoming = computed(() => wb.upcomingReminders.value.slice(0, 4));
 
+/* 今日复盘：只读汇总，数字全部来自已有记录 */
+const todayReview = computed(() => reviewFor(wb.todayStr.value, wb.state));
+const reviewLine = computed(() => reviewHeadline(todayReview.value));
+const reviewDone = computed(() =>
+  todayReview.value.completed.length + todayReview.value.finishedElsewhere.length);
+
 function relTime(ms) {
   const diff = ms - Date.now();
   if (diff <= 0) return '即将';
@@ -222,24 +229,35 @@ function taskTime(task) {
 
 <template>
   <div class="home page-shell">
-    <!-- 头部 -->
-    <header class="home-head">
-      <div class="home-greeting">
-        <h1>{{ wb.greetingText.value }}</h1>
-        <p class="greeting-sub">
-          今天有 <strong>{{ todayTasks.length }}</strong> 项待办
-          <template v-if="wb.overdueCount.value">，其中 <strong class="warn">{{ wb.overdueCount.value }}</strong> 项已逾期</template>
-          。保持节奏，先完成最重要的一件事。
+    <!-- 今日头部：日期 + 状态 + 主动作 -->
+    <header class="today-head">
+      <div class="today-copy">
+        <p class="today-eyebrow">{{ wb.greetingText.value }}</p>
+        <h1>今天<span v-if="todayTasks.length" class="today-badge">{{ todayTasks.length }}</span></h1>
+        <p class="today-sub">
+          <template v-if="wb.overdueCount.value"><b class="warn">{{ wb.overdueCount.value }}</b> 项逾期 · </template>
+          {{ todayTasks.length ? '按优先级推进，先完成最重要的一件事。' : '还没有安排，先写下一件事。' }}
         </p>
       </div>
+      <div class="today-actions">
+        <button class="btn btn-soft" type="button" @click="wb.goto('study')">
+          <img :src="asset('assets/icons/timer.svg')" alt="" />开始专注
+        </button>
+        <button class="btn btn-primary" type="button" @click="emit('new-task')">
+          <img :src="asset('assets/icons/plus.svg')" alt="" />新建任务
+        </button>
+      </div>
+    </header>
 
+    <section class="today-board">
       <form class="quick-add" @submit.prevent="submitQuick">
+        <img class="quick-lead" :src="asset('assets/icons/sparkles.svg')" alt="" />
         <input
           ref="quickInput"
           v-model="quickText"
           class="quick-input"
           maxlength="200"
-          placeholder="添加今日任务，回车保存（如：15:00 项目评审）"
+          placeholder="写下一件事，回车保存（如：15:00 项目评审）"
           aria-label="快速添加今日任务"
         />
         <div class="split-wrap" :class="{ 'is-open': splitOpen }">
@@ -269,45 +287,43 @@ function taskTime(task) {
           </div>
         </div>
       </form>
-    </header>
 
-    <!-- KPI 统计 -->
-    <section class="kpi-strip" aria-label="今日概览">
-      <component
-        :is="kpi.run ? 'button' : 'div'"
-        v-for="kpi in kpis"
-        :key="kpi.id"
-        class="kpi card card-hover spot"
-        :class="{ 'is-quiet': kpi.quiet }"
-        :type="kpi.run ? 'button' : undefined"
-        :data-widget="kpi.id === 'water' || kpi.id === 'steps' ? 'quick' : kpi.id === 'off' ? 'work' : undefined"
-        @pointermove="spotlight"
-        @click="kpi.run?.()"
-      >
-        <span class="kpi-top">
-          <span class="icon-tile" :class="kpi.tone"><img :src="asset(`assets/icons/${kpi.icon}.svg`)" alt="" /></span>
-          <span class="kpi-label">{{ kpi.label }}</span>
-          <button
-            v-if="kpi.action"
-            class="kpi-action"
-            type="button"
-            :aria-label="`记录${kpi.label}`"
-            @click.stop="kpi.action.run()"
-          >{{ kpi.action.label }}</button>
-        </span>
-        <span class="kpi-body">
-          <ProgressRing v-if="kpi.ring !== undefined" :percent="kpi.ring" :tone="kpi.toneRing || 'brand'" :size="42" />
-          <span class="kpi-value numeric">
-            <AnimatedNumber v-if="typeof kpi.value === 'number'" :value="kpi.value" />
-            <b v-else>{{ kpi.value }}</b>
-            <em v-if="kpi.unit">{{ kpi.unit }}</em>
+      <!-- 紧凑状态条：数字先于装饰 -->
+      <section class="stat-strip" aria-label="今日概览">
+        <component
+          :is="kpi.run ? 'button' : 'div'"
+          v-for="kpi in kpis"
+          :key="kpi.id"
+          class="stat"
+          :class="{ 'is-quiet': kpi.quiet }"
+          :type="kpi.run ? 'button' : undefined"
+          :data-widget="kpi.id === 'water' || kpi.id === 'steps' ? 'quick' : kpi.id === 'off' ? 'work' : undefined"
+          @click="kpi.run?.()"
+        >
+          <span class="stat-head">
+            <img :src="asset(`assets/icons/${kpi.icon}.svg`)" alt="" />
+            <span>{{ kpi.label }}</span>
+            <button
+              v-if="kpi.action"
+              class="stat-action"
+              type="button"
+              :aria-label="`记录${kpi.label}`"
+              @click.stop="kpi.action.run()"
+            >{{ kpi.action.label }}</button>
           </span>
-        </span>
-        <span v-if="kpi.progress !== null && kpi.progress !== undefined" class="kpi-bar"><i :style="{ width: `${kpi.progress}%` }"></i></span>
-        <span class="kpi-sub">{{ kpi.sub }}</span>
-      </component>
+          <span class="stat-body">
+            <ProgressRing v-if="kpi.ring !== undefined" :percent="kpi.ring" :tone="kpi.toneRing || 'brand'" :size="30" />
+            <span class="stat-value numeric">
+              <AnimatedNumber v-if="typeof kpi.value === 'number'" :value="kpi.value" />
+              <b v-else>{{ kpi.value }}</b>
+              <em v-if="kpi.unit">{{ kpi.unit }}</em>
+            </span>
+          </span>
+          <span v-if="kpi.progress !== null && kpi.progress !== undefined" class="stat-track"><i :style="{ transform: `scaleX(${kpi.progress / 100})` }"></i></span>
+          <span class="stat-sub">{{ kpi.sub }}</span>
+        </component>
+      </section>
     </section>
-
     <!-- 模块工具条 -->
     <div class="blocks-bar">
       <p class="blocks-hint">
@@ -366,7 +382,7 @@ function taskTime(task) {
           </div>
 
           <div v-if="!todayTasks.length" class="empty">
-            <span class="empty-art" aria-hidden="true">🌿</span>
+            <span class="empty-art" aria-hidden="true"><img :src="asset('assets/icons/leaf.svg')" alt="" /></span>
             <strong>今天还没有待办</strong>
             <p>在上方输入框写下会议、文档或项目事项，回车即可保存。</p>
             <button class="btn btn-soft btn-sm" type="button" @click="emit('new-task')">添加今日任务</button>
@@ -453,7 +469,7 @@ function taskTime(task) {
           </ol>
           <EmptyState
             v-else
-            art="⏰"
+            icon="alarm-clock"
             title="暂无提醒"
             text="添加会议、截止或休息提醒。"
             action-label="添加提醒"
@@ -484,7 +500,7 @@ function taskTime(task) {
 
           <EmptyState
             v-if="!wb.state.notes.length"
-            art="📝"
+            icon="sticky-note"
             title="还没有便签"
             text="记下会议要点、待核对的想法，随时回来看。"
             action-label="新建便签"
@@ -532,7 +548,7 @@ function taskTime(task) {
 
           <EmptyState
             v-if="!wb.state.links.length"
-            art="🔗"
+            icon="arrow-up-right"
             title="还没有快捷链接"
             text="把常用的文档、看板或后台添加到这里。"
             action-label="添加链接"
@@ -595,6 +611,19 @@ function taskTime(task) {
               <path :d="spark.line" fill="none" stroke="var(--brand)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" :opacity="spark.active ? 1 : .4" />
               <circle v-if="spark.active" :cx="spark.last[0]" :cy="spark.last[1]" r="2.6" fill="var(--brand)" />
             </svg>
+          </div>
+        </section>
+
+        <section v-else-if="block.id === 'review'" class="panel glass rim card review-card">
+          <div class="panel-head">
+            <h2 class="panel-title">今日复盘</h2>
+            <button class="btn btn-text btn-sm" type="button" @click="wb.goto('calendar')">看日历</button>
+          </div>
+          <p class="review-line">{{ todayReview.empty ? '完成一件事、记一笔或专注一次，今天的复盘会出现在这里。' : reviewLine }}</p>
+          <div class="review-grid">
+            <div><small>完成</small><strong class="numeric">{{ reviewDone }}<em>件</em></strong></div>
+            <div><small>未完成</small><strong class="numeric">{{ todayReview.open.length }}<em>件</em></strong></div>
+            <div><small>专注</small><strong class="numeric">{{ todayReview.focusMinutes }}<em>分</em></strong></div>
           </div>
         </section>
       </div>
@@ -665,6 +694,8 @@ function taskTime(task) {
   min-height: 122px;
 }
 button.kpi { cursor: pointer; }
+.kpi .icon-tile { width: 28px; height: 28px; flex-basis: 28px; border-radius: 0; background: transparent; border: 0; box-shadow: none; }
+.kpi .icon-tile img { width: 18px; height: 18px; opacity: .55; }
 .kpi-top { display: flex; align-items: center; gap: 9px; min-width: 0; margin-bottom: 12px; }
 .kpi-label { font-size: 12.5px; font-weight: 600; color: var(--muted); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .kpi-action {
@@ -681,7 +712,7 @@ button.kpi { cursor: pointer; }
 .kpi-value em { font-style: normal; font-size: 12px; color: var(--muted); font-weight: 550; white-space: nowrap; }
 .kpi.is-quiet .kpi-value b { font-size: 19px; font-weight: 700; letter-spacing: -.01em; color: var(--ink-soft); }
 .kpi-bar { display: block; height: 4px; margin-top: 12px; border-radius: 99px; background: var(--line); overflow: hidden; }
-.kpi-bar i { display: block; height: 100%; border-radius: 99px; background: linear-gradient(90deg, var(--brand), var(--lime)); transition: width var(--motion-slow) var(--ease-out); }
+.kpi-bar i { display: block; width: 100%; height: 100%; border-radius: 99px; background: linear-gradient(90deg, var(--brand), var(--lime)); transform-origin: left center; transition: transform var(--motion-slow) var(--ease-out); }
 .kpi-sub { margin-top: 8px; font-size: 12px; color: var(--muted); line-height: 1.5; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* 模块工具条 */
@@ -854,12 +885,60 @@ button.kpi { cursor: pointer; }
 .month-grid small, .rhythm-grid small { font-size: 12px; color: var(--muted); }
 .month-grid strong, .rhythm-grid strong { font-size: 14px; font-weight: 650; overflow-wrap: anywhere; }
 .rhythm-grid em { font-style: normal; font-size: 12px; color: var(--muted); margin-left: 2px; font-weight: 400; }
-.spark { margin-top: 12px; }
+.review-line { margin: -2px 0 12px; font-size: 13px; color: var(--muted); }
+.review-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.review-grid > div { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.review-grid > div + div { padding-left: 10px; border-left: 1px solid var(--line); }
+.review-grid small { font-size: 11.5px; color: var(--muted); }
+.review-grid strong { font-size: 20px; font-weight: 750; letter-spacing: -.02em; }
+.review-grid em { font-style: normal; margin-left: 2px; font-size: 11px; font-weight: 500; color: var(--muted); }
+.review-empty { margin-top: 10px; font-size: 12px; color: var(--muted); line-height: 1.55; }.spark { margin-top: 12px; }
 .spark svg { display: block; width: 100%; height: 54px; }
 
+/* 今日头部与紧凑状态条 */
+.today-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
+.today-eyebrow { font-size: 12.5px; font-weight: 600; color: var(--muted); letter-spacing: .02em; }
+.today-eyebrow span { margin: 0 6px; opacity: .5; }
+.today-copy h1 { display: flex; align-items: center; gap: 10px; margin-top: 4px; font-size: 34px; font-weight: 800; letter-spacing: -.03em; line-height: 1.1; }
+.today-badge {
+  display: inline-grid; place-items: center; min-width: 26px; height: 26px; padding: 0 8px;
+  border-radius: 9px; background: var(--brand-pale); color: var(--brand-deep);
+  font-size: 13px; font-weight: 750; letter-spacing: 0;
+}
+.today-sub { margin-top: 7px; max-width: 62ch; font-size: 13.5px; color: var(--muted); }
+.today-sub b { color: var(--coral); font-weight: 700; }
+.today-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.today-board { display: flex; flex-direction: column; gap: 12px; }
+.today-board .quick-add { flex: 1 1 auto; max-width: none; width: 100%; }
+.quick-lead { width: 19px; height: 19px; flex: 0 0 19px; margin-left: 4px; opacity: .5; }
+.stat-strip { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.stat {
+  position: relative; display: flex; flex-direction: column; gap: 3px; min-width: 0;
+  padding: 12px 14px; text-align: left;
+  border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--surface);
+}
+button.stat { cursor: pointer; }
+.stat:hover { border-color: var(--line-strong); }
+.stat-head { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 12px; font-weight: 600; color: var(--muted); }
+.stat-head > img { width: 14px; height: 14px; flex: 0 0 14px; opacity: .55; }
+.stat-head > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.stat-action {
+  margin-left: auto; min-height: 24px; padding: 0 8px; border-radius: 7px;
+  border: 1px solid var(--line-strong); background: var(--surface);
+  color: var(--brand-deep); font-size: 11.5px; font-weight: 650;
+}
+.stat-action:hover { background: var(--brand-pale); border-color: var(--brand); }
+.stat-body { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.stat-value { display: flex; align-items: baseline; gap: 4px; min-width: 0; flex-wrap: wrap; }
+.stat-value b { font-size: 24px; font-weight: 800; letter-spacing: -.03em; line-height: 1.05; white-space: nowrap; }
+.stat-value em { font-style: normal; font-size: 11.5px; font-weight: 550; color: var(--muted); white-space: nowrap; }
+.stat-track { display: block; height: 3px; margin-top: 4px; border-radius: 99px; background: var(--line); overflow: hidden; }
+.stat-track i { display: block; width: 100%; height: 100%; border-radius: 99px; background: var(--brand); transform-origin: left center; transition: transform var(--motion-slow) var(--ease-out); }
+.stat-sub { font-size: 11.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stat.is-quiet .stat-value b { font-size: 18px; font-weight: 700; color: var(--ink-soft); }
 /* 响应式 */
 @media (max-width: 1280px) {
-  .kpi-strip { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .kpi-strip { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .block.span-4 { grid-column: span 6; }
   .block.span-8 { grid-column: span 12; }
 }
@@ -867,7 +946,7 @@ button.kpi { cursor: pointer; }
   .notes-panel .masonry { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 900px) {
-  .kpi-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .stat-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .block, .block.span-4, .block.span-6, .block.span-8, .block.span-12 { grid-column: span 12; }
   .agenda { grid-template-columns: minmax(0, 1fr); }
   .home-greeting h1 { font-size: 26px; }
@@ -876,9 +955,15 @@ button.kpi { cursor: pointer; }
   .quick-add { flex-basis: 100%; max-width: none; flex-wrap: wrap; }
   .quick-input { flex-basis: 100%; }
   .split-wrap { flex: 1; }
-  .kpi-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-  .kpi { padding: 13px 14px; min-height: 108px; }
-  .kpi-value b { font-size: 23px; }
+  .today-copy h1 { font-size: 28px; }
+  .today-actions { width: 100%; }
+  .today-actions .btn { flex: 1; }
+  .quick-lead { display: none; }
+  .stat { padding: 10px 12px; }
+  .stat-value b { font-size: 21px; }
+  .stat-sub { font-size: 11px; }
+  .blocks-hint { display: none; }
+  .blocks-bar { display: none; }
   .notes-panel .masonry { grid-template-columns: minmax(0, 1fr); }
   .agenda-row { grid-template-columns: 44px minmax(0, 1fr) auto; }
   .agenda-check { width: 44px; height: 44px; flex-basis: 44px; grid-row: 1 / 3; }

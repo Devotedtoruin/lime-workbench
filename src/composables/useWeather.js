@@ -10,6 +10,7 @@ export function useWeather() {
   const wb = useWorkbench();
 
   const busy = ref(false);
+  const error = ref('');
   const weatherData = reactive({
     loaded: false,
     place: wb.state.settings.place || '定位城市',
@@ -29,10 +30,16 @@ export function useWeather() {
   const controller = createWeatherController({
     getState: () => wb.state,
     save: () => wb.save(),
-    toast: msg => wb.showToast(msg),
+    toast: msg => {
+      // "天气已更新" is a success acknowledgement; everything else is an error worth keeping
+      // on screen next to the widget instead of a 2.2s toast.
+      if (msg !== '天气已更新') error.value = msg;
+      wb.showToast(msg);
+    },
     setBusy: v => { busy.value = v; },
     renderWeather(w, place, tips) {
       const cur = w.current || {};
+      error.value = '';
       weatherData.loaded = true;
       weatherData.place = place || wb.state.settings.place || '未知城市';
       weatherData.icon = `assets/img/${cur.icon || 'sun'}.png`;
@@ -60,9 +67,13 @@ export function useWeather() {
 
   singleton = {
     busy,
+    error,
     weatherData,
     locate: () => controller.locate(),
-    searchCity: name => controller.city(name)
+    searchCity: name => controller.city(name),
+    retry: () => (wb.state.settings.coord && wb.state.settings.place
+      ? controller.refreshSaved()
+      : controller.locate())
   };
   return singleton;
 }

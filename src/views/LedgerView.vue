@@ -43,7 +43,10 @@ const chart = computed(() => {
   return { days, max, empty: days.every(d => d.total === 0) };
 });
 
-function money(n) { return `¥${Number(n || 0).toFixed(2)}`; }
+const currency = new Intl.NumberFormat('zh-CN', {
+  style: 'currency', currency: 'CNY', minimumFractionDigits: 2, maximumFractionDigits: 2
+});
+function money(n) { return currency.format(Number(n) || 0); }
 
 function submit() {
   if (wb.addLedgerRecord({ type: type.value, amount: form.amount, note: form.note, cat: form.cat })) {
@@ -77,6 +80,7 @@ function catName(c) { return (c || '').slice(2).trim() || '未分类'; }
           </div>
         </div>
         <div class="overview-chart" role="img" aria-label="最近七天支出">
+          <small class="chart-caption">最近 7 天</small>
           <div v-if="chart.empty" class="chart-empty">最近七天还没有支出记录</div>
           <div v-else class="bars">
             <div v-for="(d, i) in chart.days" :key="d.key" class="bar-col" :class="{ 'is-today': i === 6 }" :title="`${d.label} · ${money(d.total)}`">
@@ -132,7 +136,7 @@ function catName(c) { return (c || '').slice(2).trim() || '未分类'; }
 
     <section class="panel glass rim ledger-list-panel">
       <div v-if="!filtered.length" class="empty" style="margin: 8px">
-        <span class="empty-art" aria-hidden="true">🧾</span>
+        <span class="empty-art" aria-hidden="true"><img :src="asset('assets/icons/wallet-cards.svg')" alt="" /></span>
         <strong>所选范围暂无账目</strong>
         <p>记下办公支出与收入后，这里会按时间列出。</p>
         <button class="btn btn-soft btn-sm" type="button" @click="wb.openLedgerDialog()">记一笔</button>
@@ -166,6 +170,7 @@ function catName(c) { return (c || '').slice(2).trim() || '未分类'; }
 .overview { display: flex; align-items: center; justify-content: space-between; gap: 28px; flex-wrap: wrap; }
 .overview-nums { flex: 0 0 auto; }
 .overview-chart { flex: 1 1 320px; min-width: 240px; }
+.chart-caption { display: block; margin-bottom: 4px; font-size: 11.5px; color: var(--muted); }
 /* Bars should fill the card's remaining width instead of sitting in a small cluster. */
 .bars { display: flex; align-items: flex-end; gap: 8px; width: 100%; min-height: 62px; }
 .overview-nums small { font-size: 12px; color: var(--muted); }

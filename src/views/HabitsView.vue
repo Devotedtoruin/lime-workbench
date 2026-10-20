@@ -252,7 +252,7 @@ function streakText(habit) {
 .water-buttons { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 12px; }
 .custom-water { display: flex; gap: 8px; }
 .custom-water .input { flex: 1; min-width: 0; }
-.tiny { margin-top: 10px; font-size: 12px; color: var(--muted); line-height: 1.6; }
+.tiny { margin-top: 10px; font-size: 12.5px; color: var(--muted); line-height: 1.6; }
 
 .week-days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; }
 .week-day {

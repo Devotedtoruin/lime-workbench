@@ -1,5 +1,5 @@
 <script setup>
-import { computed } from 'vue';
+import { computed, onBeforeUnmount, onMounted } from 'vue';
 import { asset } from '../lib/assets.js';
 import { useWorkbench } from '../composables/useWorkbench.js';
 
@@ -11,6 +11,11 @@ const alerts = computed(() => wb.activeAlerts.value);
 const upcoming = computed(() => wb.upcomingReminders.value.slice(0, 6));
 
 function close() { emit('update:open', false); }
+function onEscape(event) {
+  if (props.open && event.key === 'Escape') close();
+}
+onMounted(() => window.addEventListener('keydown', onEscape));
+onBeforeUnmount(() => window.removeEventListener('keydown', onEscape));
 
 function fmtDue(ms) {
   const d = new Date(ms);
@@ -66,7 +71,7 @@ function act(alert, action) {
         <section class="upcoming-block">
           <p class="block-title">接下来</p>
           <div v-if="!upcoming.length" class="empty" style="padding: 22px">
-            <span class="empty-art" aria-hidden="true">⏰</span>
+            <span class="empty-art" aria-hidden="true"><img :src="asset('assets/icons/alarm-clock.svg')" alt="" /></span>
             <strong>暂无待触发的提醒</strong>
             <p>可在「日历提醒」页添加会议、截止或休息提醒。</p>
             <button class="btn btn-soft btn-sm" type="button" @click="close(); wb.goto('calendar')">去添加提醒</button>

@@ -117,7 +117,7 @@ function sportOf(type) { return SPORTS.find(s => s.id === type) || SPORTS[0]; }
     <section class="recent-block">
       <h2 class="section-title">最近运动</h2>
       <div v-if="!recent.length" class="empty">
-        <span class="empty-art" aria-hidden="true">🏃</span>
+        <span class="empty-art" aria-hidden="true"><img :src="asset('assets/icons/run.svg')" alt="" /></span>
         <strong>暂无单次运动记录</strong>
         <p>在上方选择活动类型并填写时长，距离为可选项。</p>
       </div>

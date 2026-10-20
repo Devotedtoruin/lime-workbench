@@ -3,7 +3,7 @@
 import { reactive, ref, computed, watch } from 'vue';
 import {
   displayNameOf, avatarOf, todayKey, monthKey, workedMinutes,
-  offCountdown, timeOnDate, monthSummary, money, pad
+  offCountdown, timeOnDate, monthSummary, pad
 } from '../../js/core.js';
 import { defaultState, parseBackup, MAX_BACKUP_CHARS, validateText, TEXT_LIMITS, COLLECTION_LIMITS } from '../../js/state.js';
 import { createStateStore, unavailableStorage } from '../../js/storage.js';
@@ -36,7 +36,8 @@ export const DEFAULT_BLOCKS = [
   { id: 'notes', title: '工作便签（瀑布流）', span: 8, widget: 'notes' },
   { id: 'links', title: '工作链接', span: 8, widget: 'links' },
   { id: 'ledger', title: '本月收支', span: 4, widget: 'ledger' },
-  { id: 'rhythm', title: '近 7 天趋势', span: 4, widget: 'rhythm' }
+  { id: 'rhythm', title: '近 7 天趋势', span: 4, widget: 'rhythm' },
+  { id: 'review', title: '今日复盘', span: 4 }
 ];
 
 export const SPORTS = [
@@ -73,6 +74,9 @@ export function useWorkbench() {
 
   const state = reactive(store.initial);
   const appearance = reactive(loadAppearance());
+  // Below 45% the glass stops guaranteeing readable text on the saturated presets.
+  if (appearance.opacity < 0.45) appearance.opacity = 0.45;
+  const storageBlocked = ref(Boolean(store.readError));
   const nowTick = ref(Date.now());
   const currentPage = ref(new URLSearchParams(location.search).get('page') || 'home');
   if (!PAGE_LABELS[currentPage.value]) currentPage.value = 'home';
@@ -159,7 +163,6 @@ export function useWorkbench() {
   function resetBlocks() {
     blocks.value = DEFAULT_BLOCKS.map(b => ({ ...b }));
     saveBlocks();
-    showToast('已恢复默认模块积木布局');
   }
 
   // Toast 与 Undo
@@ -199,10 +202,15 @@ export function useWorkbench() {
         state.settings.logoMode = 'default';
       }
       store.write(JSON.parse(JSON.stringify(state)));
+      storageBlocked.value = false;
       return true;
     } catch (error) {
       const rolled = store.rollback();
       Object.assign(state, rolled);
+      // A multi-tab conflict is recoverable (reload / retry); a read-only store or a full quota
+      // is not, and needs a persistent banner rather than a 2.2s toast.
+      if (!store.canWrite || error?.name === 'QuotaExceededError' ||
+        error?.name === 'NS_ERROR_DOM_QUOTA_REACHED') storageBlocked.value = true;
       showToast(error.message || '保存失败：本地存储空间不足或受限');
       return false;
     }
@@ -213,12 +221,18 @@ export function useWorkbench() {
     const theme = appearance.theme;
     const dark = theme === 'dark' || (theme === 'system' && window.matchMedia?.('(prefers-color-scheme: dark)').matches);
     document.documentElement.dataset.theme = dark ? 'dark' : '';
+    // applyAppearance() stamps data-preset on <body> as well; without the matching theme
+    // attribute the body-level light scene tokens win over the dark ones for every child.
+    document.body.dataset.theme = dark ? 'dark' : '';
     const meta = document.querySelector('meta[name="theme-color"]');
     if (meta) meta.setAttribute('content', dark ? '#0a0e1a' : '#f4f6fb');
     applyAppearance(JSON.parse(JSON.stringify(appearance)));
   }
 
   function updateAppearance(patch) {
+    if (patch.opacity !== undefined) {
+      patch = { ...patch, opacity: Math.max(0.45, Number(patch.opacity) || 0.45) };
+    }
     Object.assign(appearance, patch);
     // 强制保持运动开启（移除右上角暂停动态媒体开关后不再锁死动画）
     appearance.motion = 'system';
@@ -237,7 +251,6 @@ export function useWorkbench() {
     resetAppearance();
     Object.assign(appearance, defaultAppearance());
     syncThemeDOM();
-    showToast('已恢复默认主题外观');
   }
 
   // 路由导航
@@ -260,6 +273,8 @@ export function useWorkbench() {
     window.scrollTo({ top: 0, behavior: 'instant' });
   }
 
+  let viewTransitionBusy = false;
+
   function goto(page, filter = null) {
     const target = PAGE_LABELS[page] ? page : 'home';
     if (filter) todoFilter.value = filter;
@@ -270,11 +285,17 @@ export function useWorkbench() {
     document.documentElement.dataset.navDir = direction > 0 ? 'down' : direction < 0 ? 'up' : '';
 
     const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-    if (typeof document.startViewTransition !== 'function' || reduced || target === currentPage.value) {
+    if (typeof document.startViewTransition !== 'function' || reduced || target === currentPage.value ||
+      viewTransitionBusy) {
       commitPage(target);
       return;
     }
-    document.startViewTransition(() => commitPage(target));
+    viewTransitionBusy = true;
+    // A second navigation while the snapshot is in flight would rewrite --vt-dir mid-animation
+    // and leave the previous transition's promises unhandled. Skip the transition instead.
+    const transition = document.startViewTransition(() => commitPage(target));
+    transition.finished.then(() => { viewTransitionBusy = false; },
+      () => { viewTransitionBusy = false; });
   }
 
   // 个人形象计算属性（彻底废除独立 Logo，统一展示个人头像 + 昵称 + 工作台名称）
@@ -439,7 +460,7 @@ export function useWorkbench() {
     state.todos.unshift(task);
     const warn = syncTaskReminder(task);
     if (!save()) return null;
-    showToast(warn || `已添加任务 · ${task.text}`);
+    if (warn) showToast(warn);
     return task;
   }
 
@@ -466,7 +487,7 @@ export function useWorkbench() {
     });
     const warn = syncTaskReminder(task);
     if (!save()) return false;
-    showToast(warn || '任务已更新');
+    if (warn) showToast(warn);
     return true;
   }
 
@@ -533,7 +554,6 @@ export function useWorkbench() {
     list.push({ ml: amount, time: Date.now() });
     state.water[key] = list;
     if (!save()) return false;
-    showToast(`饮水 +${amount} ml`);
     return true;
   }
 
@@ -547,7 +567,6 @@ export function useWorkbench() {
     list.pop();
     state.water[key] = [...list];
     if (!save()) return false;
-    showToast('已撤销最近一次饮水记录');
     return true;
   }
 
@@ -559,7 +578,6 @@ export function useWorkbench() {
     }
     state.steps[todayKey()] = num;
     if (!save()) return false;
-    showToast(`今日步数已更新为 ${num} 步`);
     return true;
   }
 
@@ -584,7 +602,6 @@ export function useWorkbench() {
       date: todayKey()
     });
     if (!save()) return false;
-    showToast(type === 'income' ? `已记收入 ${money(amt)}` : `已记支出 ${money(amt)}`);
     return true;
   }
 
@@ -658,7 +675,6 @@ export function useWorkbench() {
     const removed = state.habits[idx];
     state.habits = state.habits.filter(h => String(h.id) !== String(id));
     if (!save()) { state.habits = [...state.habits, removed]; return false; }
-    showToast('习惯已删除');
     return true;
   }
 
@@ -680,7 +696,6 @@ export function useWorkbench() {
       startAt: Date.now()
     });
     if (!save()) return false;
-    showToast(`已记录 ${mins} 分钟运动`);
     return true;
   }
 
@@ -736,10 +751,10 @@ export function useWorkbench() {
 
   function toggleFocusTimer() {
     nowTick.value = Date.now();
-    const wasRunning = state.focus.running;
-    const result = wasRunning ? pauseFocus(state.focus, Date.now()) : startFocus(state.focus, Date.now());
+    const result = state.focus.running
+      ? pauseFocus(state.focus, Date.now())
+      : startFocus(state.focus, Date.now());
     applyFocusSettlement(result);
-    if (!result.completed) showToast(wasRunning ? '专注已暂停' : '专注开始');
   }
 
   function setFocusDuration(minutes, { reset = false } = {}) {
@@ -750,7 +765,6 @@ export function useWorkbench() {
     }
     if (!reset) state.settings.focusMinutes = mins;
     applyFocusSettlement(resetFocus(state.focus, Date.now(), mins * 60));
-    showToast(`专注时长已设为 ${mins} 分钟`);
     return true;
   }
 
@@ -789,7 +803,6 @@ export function useWorkbench() {
       if (id) record.id = Number(id);
       state.notes = upsertNote(state.notes || [], record, Date.now());
       if (!save()) return false;
-      showToast('便签已保存');
       return true;
     } catch (err) {
       showToast(err.message || '便签内容无效');
@@ -815,7 +828,6 @@ export function useWorkbench() {
       if (id) record.id = Number(id);
       state.links = upsertLink(state.links || [], record, Date.now());
       if (!save()) return false;
-      showToast('工作链接已保存');
       return true;
     } catch (err) {
       showToast(err.message || '请输入有效的名称和 https:// 网址');
@@ -880,7 +892,6 @@ export function useWorkbench() {
       }
       state.reminders.push(r);
       if (!save()) return false;
-      showToast(`已开启「${r.label}」提醒`);
       return true;
     } catch (err) {
       showToast(err.message || '提醒间隔无效');
@@ -898,7 +909,6 @@ export function useWorkbench() {
       }
       state.reminders.push(r);
       if (!save()) return false;
-      showToast(`已开始「${r.label}」倒计时`);
       return true;
     } catch (err) {
       showToast(err.message || '倒计时设置无效');
@@ -920,7 +930,6 @@ export function useWorkbench() {
       r.id = uniqueReminderId(repeat);
       state.reminders.push(r);
       if (!save()) return false;
-      showToast(`已添加定时提醒「${clean}」`);
       return true;
     } catch (err) {
       showToast(err.message || '请选择未来的有效日期与时间');
@@ -1019,7 +1028,6 @@ export function useWorkbench() {
       case 'focus':
         if (!setFocusDuration(Number(p.minutes))) return false;
         applyFocusSettlement(startFocus(state.focus, Date.now()));
-        showToast(`已开始 ${p.minutes} 分钟专注`);
         return true;
       case 'reminder': {
         const minutes = Number(p.minutes);
@@ -1037,7 +1045,6 @@ export function useWorkbench() {
         }
         state.study[todayKey()] = (state.study[todayKey()] || 0) + seconds;
         if (!save()) return false;
-        showToast(`已记录专注 ${p.minutes} 分钟`);
         return true;
       }
       default:
@@ -1090,6 +1097,7 @@ export function useWorkbench() {
   singleton = {
     state,
     appearance,
+    storageBlocked,
     nowTick,
     currentPage,
     todoFilter,

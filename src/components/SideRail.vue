@@ -56,6 +56,17 @@ function navigate(page) {
       </span>
     </a>
 
+    <div class="rail-quick">
+      <button class="rail-quick-btn rail-quick-primary" type="button" @click="navigate('todo')">
+        <img :src="asset('assets/icons/plus.svg')" alt="" />
+        <span>快速添加</span>
+      </button>
+      <button class="rail-quick-btn" type="button" @click="navigate('study')">
+        <img :src="asset('assets/icons/play.svg')" alt="" />
+        <span>开始专注</span>
+      </button>
+    </div>
+
     <nav class="rail-nav">
       <p class="rail-group">工作</p>
       <button
@@ -167,7 +178,7 @@ function navigate(page) {
   flex-direction: column;
   padding: 18px 12px 12px;
   overflow: hidden;
-  box-shadow: var(--shadow-lg), inset 0 1px 0 var(--glass-rim);
+  box-shadow: var(--shadow-sm), inset 0 1px 0 var(--glass-rim);
   transition: width var(--motion-slow) var(--ease-spring), transform var(--motion-slow) var(--ease-spring);
 }
 .rail.is-collapsed { width: var(--sidebar-w-collapsed); }
@@ -195,6 +206,19 @@ function navigate(page) {
 .rail-brand-copy small { font-size: 12px; color: var(--muted); letter-spacing: .02em; white-space: nowrap; }
 
 /* 导航 */
+.rail-quick { display: grid; gap: 6px; margin: 14px 4px 4px; }
+.rail-quick-btn {
+  display: flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 10px;
+  border: 1px solid var(--line); border-radius: 10px; background: var(--surface);
+  color: var(--ink-soft); font-size: 12.5px; font-weight: 600;
+}
+.rail-quick-btn:hover { border-color: var(--line-strong); color: var(--ink); }
+.rail-quick-btn img { width: 15px; height: 15px; opacity: .6; flex: 0 0 15px; }
+.rail-quick-primary { background: var(--brand-pale); border-color: transparent; color: var(--brand-deep); }
+.rail-quick-primary:hover { background: color-mix(in srgb, var(--brand) 16%, var(--surface)); color: var(--brand-deep); }
+.rail-quick-primary img { opacity: .85; }
+.rail.is-collapsed .rail-quick-btn { justify-content: center; padding: 0; }
+.rail.is-collapsed .rail-quick-btn span { display: none; }
 .rail-nav { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; display: flex; flex-direction: column; gap: 2px; padding: 0 2px 8px; overscroll-behavior: contain; }
 .rail-group {
   margin: 14px 10px 6px; font-size: 12px; font-weight: 700;

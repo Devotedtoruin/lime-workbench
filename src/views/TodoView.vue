@@ -49,14 +49,28 @@ const rows = computed(() => {
 
 const quickInput = ref(null);
 
+function tomorrowKey() {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 function addQuick() {
   if (!quickText.value.trim()) return;
-  if (wb.addTodo(quickText.value, { bucket: wb.todoFilter.value })) {
+  const filter = wb.todoFilter.value;
+  const opts = { bucket: filter === 'anytime' ? 'anytime' : 'today' };
+  // Adding while "稍后" is active should land in the list being looked at, not invisibly in today.
+  if (filter === 'upcoming') opts.date = tomorrowKey();
+  if (wb.addTodo(quickText.value, opts)) {
     quickText.value = '';
     // Same as the home composer: keep focus in the field so a second task can be typed
     // immediately instead of requiring a click back into the input.
     requestAnimationFrame(() => quickInput.value?.focus());
   }
+}
+
+function deferTask(task) {
+  if (wb.updateTodo(task.id, { date: tomorrowKey() })) wb.showToast('已推迟到明天');
 }
 function label(task) {
   if (!task.date) return '随时';
@@ -135,7 +149,7 @@ function label(task) {
       </div>
 
       <div v-if="!rows.length" class="empty" style="margin: 16px">
-        <span class="empty-art" aria-hidden="true">🗂️</span>
+        <span class="empty-art" aria-hidden="true"><img :src="asset('assets/icons/list-checks.svg')" alt="" /></span>
         <strong>这里还没有任务</strong>
         <p>一句话就能创建任务，例如「明天下午三点交周报」。</p>
         <button v-if="wb.todoFilter.value !== 'done'" class="btn btn-soft btn-sm" type="button" @click="emit('new-task')">新建任务</button>
@@ -167,6 +181,9 @@ function label(task) {
             </button>
             <button class="btn-icon" type="button" title="设为专注任务" aria-label="设为专注任务" @click="wb.linkTaskToFocus(task.id, true)">
               <img :src="asset('assets/icons/play.svg')" alt="" />
+            </button>
+            <button v-if="!task.done" class="btn-icon" type="button" title="推迟到明天" aria-label="推迟到明天" @click="deferTask(task)">
+              <img :src="asset('assets/icons/calendar-plus.svg')" alt="" />
             </button>
             <button class="btn-icon is-danger" type="button" title="删除任务" aria-label="删除任务" @click="wb.deleteTodo(task.id)">
               <img :src="asset('assets/icons/trash.svg')" alt="" />
@@ -201,6 +218,7 @@ function label(task) {
   width: 100%;
 }
 .composer > img { width: 19px; height: 19px; opacity: .6; flex: 0 0 19px; }
+.composer:focus-within { box-shadow: var(--ring); }
 .composer input { flex: 1; min-width: 0; height: 40px; border: 0; background: transparent; outline: none; font-size: 14px; }
 .composer-hint { margin-top: -12px; padding-left: 4px; font-size: 12px; color: var(--muted); }
 
@@ -277,5 +295,10 @@ function label(task) {
   .task-meta { grid-column: 2; grid-row: 2; }
   .task-due { grid-column: 2; grid-row: 3; }
   .task-actions { grid-column: 3; grid-row: 1 / 4; }
+}
+@media (max-width: 640px) {
+  .page-head-actions { display: none; }
+  .segmented button { padding: 0 9px; }
+  .segmented .tab-count { display: none; }
 }
 </style>

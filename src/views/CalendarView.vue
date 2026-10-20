@@ -135,7 +135,7 @@ function toggleSound() {
             </button>
           </div>
           <div v-if="!dayTasks.length" class="empty" style="padding: 20px">
-            <span class="empty-art" aria-hidden="true">📅</span>
+            <span class="empty-art" aria-hidden="true"><img :src="asset('assets/icons/calendar-days.svg')" alt="" /></span>
             <p>这一天还没有安排。</p>
           </div>
           <ul v-else class="cal-tasks">
@@ -259,7 +259,7 @@ function toggleSound() {
     <section class="panel glass rim">
       <div class="panel-head"><h2 class="panel-title">进行中的提醒 <span class="badge">{{ wb.state.reminders.length }}</span></h2></div>
       <div v-if="!wb.state.reminders.length" class="empty">
-        <span class="empty-art" aria-hidden="true">🔔</span>
+        <span class="empty-art" aria-hidden="true"><img :src="asset('assets/icons/bell.svg')" alt="" /></span>
         <strong>还没有提醒</strong>
         <p>选择上面的预设，或创建自己的提醒。</p>
       </div>
@@ -350,7 +350,7 @@ function toggleSound() {
 
 .schedule-form { display: flex; flex-direction: column; gap: 11px; }
 .schedule-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; }
-.tiny { margin-top: 10px; font-size: 12px; color: var(--muted); line-height: 1.6; }
+.tiny { margin-top: 10px; font-size: 12.5px; color: var(--muted); line-height: 1.6; }
 
 .preset-chips { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 12px; }
 .preset-chip {

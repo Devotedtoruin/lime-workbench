@@ -147,6 +147,8 @@ export function applyAppearance(config) {
   const root = doc.documentElement;
   root.style.setProperty('--glass-alpha', `${Number((safe.opacity * 100).toFixed(3))}%`);
   root.style.setProperty('--panel-blur', `${safe.panelBlur}px`);
+  // The glass CSS consumes --glass-blur; without this the "外壳虚化" slider wrote an unused token.
+  root.style.setProperty('--glass-blur', `${safe.panelBlur}px`);
   root.style.setProperty('--background-blur', `${safe.backgroundBlur}px`);
   root.style.setProperty('--panel-radius', `${safe.radius}px`);
   root.style.setProperty('--background-dim', String(safe.backgroundDim));

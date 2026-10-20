@@ -357,12 +357,12 @@ function clearData() {
       </div>
 
       <!-- 玻璃通透度：这是液态玻璃最直接的一档。数值越低，背后的光透得越多。 -->
-      <p class="group-label">玻璃通透度</p>
+      <p class="group-label">玻璃通透度（外壳）</p>
       <div class="slider-row">
         <input
           class="range"
           type="range"
-          min="30"
+          min="45"
           max="100"
           step="2"
           :value="Math.round(wb.appearance.opacity * 100)"
@@ -371,9 +371,9 @@ function clearData() {
         />
         <span class="slider-value numeric">{{ Math.round(wb.appearance.opacity * 100) }}%</span>
       </div>
-      <p class="tiny">数值越低越通透。低于 45% 时文字会更依赖背景明暗，阅读正文可适当调回。</p>
+      <p class="tiny">只影响侧栏、顶栏与弹层。为保证正文可读，最低 45%；内容卡片使用实色底。</p>
 
-      <p class="group-label">面板虚化</p>
+      <p class="group-label">外壳虚化</p>
       <div class="slider-row">
         <input
           class="range"
@@ -382,7 +382,7 @@ function clearData() {
           max="24"
           step="1"
           :value="wb.appearance.panelBlur"
-          aria-label="面板虚化程度"
+          aria-label="外壳虚化程度"
           @input="wb.updateAppearance({ panelBlur: Number($event.target.value) })"
         />
         <span class="slider-value numeric">{{ wb.appearance.panelBlur }}px</span>
@@ -531,7 +531,7 @@ function clearData() {
 /* Form fields stop widening past a readable measure: at 1878px three columns gave each input
    ~600px, so a short value sat in a very long box and the label was far from its end. */
 .form-grid { max-width: 1180px; }
-.tiny { font-size: 12px; color: var(--muted); line-height: 1.7; }
+.tiny { font-size: 12.5px; color: var(--muted); line-height: 1.7; }
 .actions-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
 
 .group-label { font-size: 12px; font-weight: 700; color: var(--ink-soft); margin: 18px 0 9px; }
@@ -542,8 +542,8 @@ function clearData() {
   border-radius: 12px; background: var(--surface); color: var(--ink-soft); font-size: 12.5px;
   transition: border-color var(--motion-fast), box-shadow var(--motion-fast), transform var(--motion-fast);
 }
-.preset-btn:hover { transform: translateY(-1px); border-color: var(--line-strong); box-shadow: var(--shadow-sm); }
-.preset-btn.is-active { border-color: var(--brand); box-shadow: inset 0 0 0 1px var(--brand); color: var(--brand-deep); font-weight: 650; }
+.preset-btn:hover { border-color: var(--line-strong); }
+.preset-btn.is-active { border-color: var(--brand); color: var(--brand-deep); font-weight: 650; }
 .preset-swatch { width: 34px; height: 34px; flex: 0 0 34px; border-radius: 9px; box-shadow: inset 0 0 0 1px rgb(255 255 255 / .35); }
 
 .theme-grid { display: flex; gap: 8px; flex-wrap: wrap; }

@@ -1,5 +1,5 @@
 <script setup>
-import { computed, nextTick, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { asset } from '../lib/assets.js';
 import { useWorkbench } from '../composables/useWorkbench.js';
 import { understand, askLLM, normalizeAction, isLLMReady, loadAgentConfig, resolveAgentEndpoint } from '../../js/agent.js';
@@ -67,6 +67,15 @@ watch(input, value => {
 });
 
 function close() { emit('update:open', false); }
+
+function onGlobalKey(event) {
+  if (props.open && event.key === 'Escape') {
+    event.preventDefault();
+    close();
+  }
+}
+onMounted(() => window.addEventListener('keydown', onGlobalKey));
+onBeforeUnmount(() => window.removeEventListener('keydown', onGlobalKey));
 
 function execute() {
   if (intent.value && wb.execIntent(intent.value)) close();
@@ -215,7 +224,8 @@ function onKeydown(event) {
 }
 .command-row { display: flex; align-items: center; gap: 11px; padding: 12px 12px 12px 18px; border-bottom: 1px solid var(--line); }
 .command-row > img { width: 19px; height: 19px; opacity: .55; flex: 0 0 19px; }
-.command-row input { flex: 1; min-width: 0; border: 0; background: transparent; font-size: 15px; outline: none; }
+.command-row input { flex: 1; min-width: 0; border: 0; background: transparent; font-size: 15px; outline: none; border-radius: 6px; }
+.command-row input:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
 .command-body { padding: 16px 18px; }
 .command-hint .hint-title { font-size: 13px; font-weight: 650; color: var(--ink-soft); margin-bottom: 10px; }
 .suggest { display: flex; flex-wrap: wrap; gap: 8px; }

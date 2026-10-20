@@ -1,5 +1,5 @@
 <script setup>
-import { computed, reactive, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { asset } from '../lib/assets.js';
 import { useWorkbench } from '../composables/useWorkbench.js';
 import { todayKey } from '../../js/core.js';
@@ -26,6 +26,12 @@ watch(() => props.open, open => {
 });
 
 function close() { emit('update:open', false); }
+
+function onEscape(event) {
+  if (props.open && event.key === 'Escape') close();
+}
+onMounted(() => window.addEventListener('keydown', onEscape));
+onBeforeUnmount(() => window.removeEventListener('keydown', onEscape));
 
 function submit() {
   const payload = {

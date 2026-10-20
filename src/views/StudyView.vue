@@ -190,7 +190,7 @@ function applyIntent() {
       </div>
 
       <div v-if="summary.total === 0" class="empty">
-        <span class="empty-art" aria-hidden="true">⏱️</span>
+        <span class="empty-art" aria-hidden="true"><img :src="asset('assets/icons/timer.svg')" alt="" /></span>
         <strong>这段时间还没有专注记录</strong>
         <p>开始一次专注后，这里会按天累计你的时长。</p>
       </div>

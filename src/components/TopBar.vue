@@ -1,7 +1,7 @@
 <script setup>
 import { computed, onMounted, onBeforeUnmount, ref } from 'vue';
 import { asset } from '../lib/assets.js';
-import { useWorkbench } from '../composables/useWorkbench.js';
+import { useWorkbench, PAGE_LABELS } from '../composables/useWorkbench.js';
 import { useWeather } from '../composables/useWeather.js';
 
 const wb = useWorkbench();
@@ -10,7 +10,7 @@ const weather = useWeather();
 const emit = defineEmits(['open-command', 'open-notifications']);
 
 const canGoBack = ref(false);
-const nowLabel = computed(() => wb.formattedDate.value);
+const pageLabel = computed(() => PAGE_LABELS[wb.currentPage.value] || '今天');
 const weatherLabel = computed(() => {
   const w = weather.weatherData;
   if (!w.loaded) return '天气';
@@ -43,9 +43,9 @@ onBeforeUnmount(() => window.removeEventListener('scroll', onScroll));
         <span class="menu-bars" aria-hidden="true"><i></i><i></i><i></i></span>
       </button>
       <div class="crumb">
-        <span class="crumb-page">{{ wb.formattedDate.value }}</span>
+        <span class="crumb-page">{{ pageLabel }}</span>
         <span class="crumb-sep" aria-hidden="true">·</span>
-        <span class="crumb-now">{{ wb.greetingText.value }}</span>
+        <span class="crumb-now">{{ wb.formattedDate.value }}</span>
       </div>
     </div>
 

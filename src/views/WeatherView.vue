@@ -27,6 +27,11 @@ function searchCity() {
       <span class="privacy"><img :src="asset('assets/icons/map-pin.svg')" alt="" />位置只用于天气查询</span>
     </header>
 
+    <p v-if="weather.error.value" class="weather-error" role="alert">
+      <span>{{ weather.error.value }}</span>
+      <button class="btn btn-soft btn-sm" type="button" @click="weather.retry()">重试</button>
+    </p>
+
     <section class="panel glass rim weather-hero" :aria-busy="weather.busy.value">
       <div class="weather-main">
         <img class="weather-icon" :src="weather.weatherData.icon" alt="" />
@@ -59,7 +64,7 @@ function searchCity() {
             <span>{{ tip.text }}</span>
           </li>
         </ul>
-        <div v-else class="empty"><span class="empty-art">🌤️</span><p>选择城市后显示天气与通勤建议。</p></div>
+        <div v-else class="empty"><span class="empty-art" aria-hidden="true"><img :src="asset('assets/icons/cloud-sun.svg')" alt="" /></span><p>选择城市后显示天气与通勤建议。</p></div>
       </section>
 
       <section class="panel glass rim">
@@ -73,7 +78,7 @@ function searchCity() {
             <span class="day-pop">{{ d.pop }}</span>
           </div>
         </div>
-        <div v-else class="empty"><span class="empty-art">📅</span><p>选择城市后显示未来几天预报。</p></div>
+        <div v-else class="empty"><span class="empty-art" aria-hidden="true"><img :src="asset('assets/icons/calendar-days.svg')" alt="" /></span><p>选择城市后显示未来几天预报。</p></div>
       </section>
     </div>
 
@@ -87,6 +92,11 @@ function searchCity() {
 </template>
 
 <style scoped>
+.weather-error {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+  padding: 10px 14px; border: 1px solid var(--coral); border-radius: var(--radius-control);
+  background: var(--coral-pale); color: var(--ink); font-size: 13px;
+}
 .privacy { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; color: var(--muted); }
 .privacy img { width: 16px; height: 16px; opacity: .6; }
 .weather-hero { display: flex; flex-direction: column; gap: 18px; }
@@ -100,7 +110,7 @@ function searchCity() {
 .weather-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .city-search { display: flex; align-items: center; gap: 8px; flex: 1 1 260px; max-width: 420px; }
 .city-search .input { flex: 1; min-width: 0; }
-.tiny { font-size: 12px; color: var(--muted); line-height: 1.6; }
+.tiny { font-size: 12.5px; color: var(--muted); line-height: 1.6; }
 
 .weather-lower { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--shell-gap); align-items: start; }
 .tips { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
@@ -116,7 +126,7 @@ function searchCity() {
 .day-temp { color: var(--ink); font-weight: 600; white-space: nowrap; }
 .day-pop { color: var(--muted); font-size: 11.5px; white-space: nowrap; }
 
-.attribution { font-size: 12px; color: var(--muted); line-height: 1.7; }
+.attribution { font-size: 12.5px; color: var(--muted); line-height: 1.7; }
 .attribution a { color: var(--brand); text-decoration: none; }
 .attribution a:hover { text-decoration: underline; }
 

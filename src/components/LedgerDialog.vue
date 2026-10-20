@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch } from 'vue';
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { asset } from '../lib/assets.js';
 import { useWorkbench } from '../composables/useWorkbench.js';
 import { CATEGORIES, categoryIcon } from '../../js/command.js';
@@ -25,6 +25,11 @@ watch(() => props.open, open => {
 });
 
 function close() { emit('update:open', false); }
+function onEscape(event) {
+  if (props.open && event.key === 'Escape') close();
+}
+onMounted(() => window.addEventListener('keydown', onEscape));
+onBeforeUnmount(() => window.removeEventListener('keydown', onEscape));
 function submit() {
   if (wb.addLedgerRecord({ type: type.value, amount: amount.value, note: note.value, cat: cat.value })) close();
 }
