@@ -13,7 +13,7 @@
 // Bump CACHE_VERSION on every release. Bumping is what drops the previous cache; without it
 // users keep whatever shell they installed first.
 
-const CACHE_VERSION = 'v44';
+const CACHE_VERSION = 'v45';
 const SCOPE = new URL(self.registration.scope);
 const CACHE_PREFIX = `lime-workbench-${encodeURIComponent(SCOPE.href)}-`;
 const CACHE = `${CACHE_PREFIX}${CACHE_VERSION}`;

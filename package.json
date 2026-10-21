@@ -1,7 +1,7 @@
 {
   "name": "lime-workbench",
   "version": "1.0.0",
-  "description": "青柠工作台 · 现代 B 端质感个人工作台（Vue 3 + 液态玻璃 + 模块化积木）",
+  "description": "青柠工作台 · 给打工人用的本地优先工作台（Vue 3 + 玻璃视觉 + 日报/休息）",
   "private": true,
   "type": "module",
   "scripts": {
