@@ -121,7 +121,7 @@ export function parseDateWord(text, now = new Date()) {
   return d;
 }
 
-const CLOCK_RE = /(?<![\dA-Za-z.零一二两三四五六七八九十百千])(?<period>凌晨|清晨|早上|上午|中午|下午|傍晚|晚上|今晚)?\s*(?<hour>\d{1,2}|[零一二两三四五六七八九十]{1,3})(?:(?:[:：](?<colonMinute>\d{2}))|(?:点|时)(?<chineseMinute>半|[零一二两三四五六七八九十]{1,3}|\d{1,2})?分?|(?<onlyMeridiem>am|pm)\b)\s*(?<meridiem>am|pm)?(?!\d)/i;
+const CLOCK_RE = /(?<![\dA-Za-z.零一二两三四五六七八九十百千])(?<period>凌晨|清晨|早上|上午|中午|下午|傍晚|晚上|今晚|明晚)?\s*(?<hour>\d{1,2}|[零一二两三四五六七八九十]{1,3})(?:(?:[:：](?<colonMinute>\d{2}))|(?:点|时)(?<chineseMinute>半|[零一二两三四五六七八九十]{1,3}|\d{1,2})?分?|(?<onlyMeridiem>am|pm)\b)\s*(?<meridiem>am|pm)?(?!\d)/i;
 
 /** 识别中文/英文时刻：下午三点、15:30、3pm、at 3:30 pm */
 export function parseClock(text) {
@@ -138,6 +138,8 @@ export function parseClock(text) {
   if (part === 'pm' && hour < 12) hour += 12;
   if (part === 'am' && hour === 12) hour = 0;
   if (!part && /下午|傍晚|晚上|今晚/.test(period || '') && hour < 12) hour += 12;
+  // 晚上/今晚十二点 is midnight at the end of the day, not noon.
+  if (!part && /晚上|今晚|夜里|明晚/.test(period || '') && hour === 12) hour = 0;
   if (!part && /凌晨|清晨|早上|上午/.test(period || '') && hour === 12) hour = 0;
   if (hour > 23 || minute > 59) return null;
   return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
@@ -268,6 +270,20 @@ function ambiguousLedgerNumber(text) {
 }
 
 /**
+ * 「今晚 12 点」means the midnight that ends today, i.e. tomorrow's date.
+ * Other date phrases keep their parsed day.
+ */
+function resolveTodoDate(text, now, time) {
+  const parsed = parseDateWord(text, now);
+  if (time === '00:00' && /晚上|今晚|夜里|明晚/.test(text)) {
+    const next = new Date(parsed);
+    next.setDate(next.getDate() + 1);
+    return next;
+  }
+  return parsed;
+}
+
+/**
  * 主入口：把一句话变成一个"意图"
  * @returns {{kind:string, payload:object}|null}
  */
@@ -288,7 +304,7 @@ export function parseCommand(raw, now = new Date()) {
   if (clockLike.test(text) && !time) return null;
   const hasDate = text.search(DATE_WORD_RE) !== -1;
   const isQuestion = QUESTION_RE.test(text);
-  const date = parseDateWord(text, now);
+  const date = resolveTodoDate(text, now, time);
   const futureDate = hasDate && dateKey(date) !== dateKey(now);
   // 提醒和明确的将来/时刻优先，避免「明天15:30喝水」被记成喝了15ml。
   if (explicitTodo || !isQuestion && (time || futureDate) && !CURRENCY_RE.test(text)) {
@@ -378,7 +394,7 @@ export function parseCommand(raw, now = new Date()) {
     if (content) {
       return {
         kind: 'todo',
-        payload: { text: content, date: dateKey(parseDateWord(text, now)), time, timed: !!time }
+        payload: { text: content, date: dateKey(resolveTodoDate(text, now, time)), time, timed: !!time }
       };
     }
   }

@@ -254,8 +254,8 @@ export function extractAmount(text) {
     if (Number.isFinite(value) && value > 0) return { amount: value, confidence: 0.9 };
   }
 
-  // 3) 中文数字金额：三百、五十、一百五
-  const cn = /([零一二两三四五六七八九十百千]+)\s*(?:元|块钱|块)/.exec(cleaned);
+  // 3) 中文数字金额：三百、五十、一百五、一千五、一万五
+  const cn = /([零一二两三四五六七八九十百千万亿]+)\s*(?:元|块钱|块)/.exec(cleaned);
   if (cn) {
     const value = chineseNumber(cn[1]);
     if (value > 0) return { amount: value, confidence: 0.88 };
@@ -270,28 +270,54 @@ export function extractAmount(text) {
   return { amount: null, confidence: 0 };
 }
 
-/** 中文数字 → 阿拉伯数字（支持「一百五」这类省略尾数的说法） */
+/** 中文数字 → 阿拉伯数字（支持「一百五」「一千五」「一万五」这类省略尾数的说法） */
 export function chineseNumber(text) {
   const DIGITS = { 零: 0, 一: 1, 二: 2, 两: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9 };
-  const UNITS = { 十: 10, 百: 100, 千: 1000 };
-  const s = String(text || '');
+  const SMALL_UNITS = { 十: 10, 百: 100, 千: 1000 };
+  const BIG_UNITS = { 万: 10000, 亿: 100000000 };
+  const s = String(text || '').replace(/两/g, '二');
   if (!s) return 0;
-  let total = 0;
-  let section = 0;
-  let digit = 0;
+  let total = 0, section = 0, number = 0;
+  let lastSmallUnit = 0;       // 最近一个十/百/千，用于口语省略补位
+  let lastBigUnit = 0;         // 最近一个万/亿
+  let afterZero = false;       // 末尾数字前是否出现过「零」
+
   for (const ch of s) {
-    if (ch in DIGITS) { digit = DIGITS[ch]; continue; }
-    const unit = UNITS[ch];
-    if (unit) {
-      // 「十五」= 15（十前面没有数字时按 1 算）
-      section += (digit || 1) * unit;
-      digit = 0;
+    if (ch in DIGITS) {
+      number = DIGITS[ch];
+      afterZero = ch === '零' ? true : afterZero;
+      continue;
+    }
+    const small = SMALL_UNITS[ch];
+    if (small) {
+      section += (number || 1) * small;
+      number = 0;
+      lastSmallUnit = small;
+      lastBigUnit = 0;
+      afterZero = false;
+      continue;
+    }
+    const big = BIG_UNITS[ch];
+    if (big) {
+      total += (section + number || 1) * big;
+      section = 0;
+      number = 0;
+      lastBigUnit = big;
+      lastSmallUnit = 0;
+      afterZero = false;
     }
   }
-  total = section + digit;
-  // 「一百五」口语是 150：末尾是单个数字且出现过「百」，按下一档的十位补。
-  if (digit > 0 && /百/.test(s) && !/十/.test(s)) total = section + digit * 10;
-  return total;
+
+  // 口语省略：末尾只剩一个数字、前面没有「零」、并且最近用到过百/千/万/亿时，
+  // 这个数字代表下一档。例：一百五=150、一千五=1500、一万五=15000。
+  if (number > 0 && !afterZero && (lastSmallUnit || lastBigUnit)) {
+    const unit = lastSmallUnit || lastBigUnit;
+    if (unit >= 100) {
+      section += number * (unit / 10);
+      number = 0;
+    }
+  }
+  return total + section + number;
 }
 
 /* ============================================================

@@ -173,6 +173,20 @@ test('中文数字金额', () => {
   assert.equal(extractAmount('水费 五十 元').amount, 50);
 });
 
+test('中文金额省略尾数、零与万位', () => {
+  assert.equal(chineseNumber('一千五'), 1500);
+  assert.equal(chineseNumber('两千五'), 2500);
+  assert.equal(chineseNumber('一万五'), 15000);
+  assert.equal(chineseNumber('一百零五'), 105);
+  assert.equal(chineseNumber('三百零二'), 302);
+  assert.equal(chineseNumber('一千零五十'), 1050);
+  assert.equal(chineseNumber('一万零五百'), 10500);
+  assert.equal(chineseNumber('十二万'), 120000);
+  assert.equal(extractAmount('买菜一千五块').amount, 1500);
+  assert.equal(extractAmount('房租一万五块').amount, 15000);
+  assert.equal(extractAmount('一百零五块').amount, 105);
+});
+
 test('没有金额时返回 null', () => {
   assert.equal(extractAmount('今天天气不错').amount, null);
   assert.equal(parseLedgerPhrase('今天天气不错'), null);

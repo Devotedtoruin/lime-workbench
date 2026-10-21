@@ -174,17 +174,17 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKeydown));
   .shell, .shell.rail-collapsed {
     padding: env(safe-area-inset-top) 0 calc(84px + env(safe-area-inset-bottom));
   }
-  .content-col { gap: 10px; padding: 10px 16px 8px; }
+  .content-col { gap: 10px; padding: 10px max(16px, env(safe-area-inset-right)) 8px max(16px, env(safe-area-inset-left)); }
 }
 
 .storage-banner {
-  position: sticky; top: 8px; z-index: 200;
+  position: relative; z-index: 1;
   display: flex; align-items: center; justify-content: center; gap: 12px; flex-wrap: wrap;
   margin: 8px 16px; padding: 10px 14px;
   border: 1px solid var(--coral);
   border-radius: var(--radius-control);
   background: var(--coral-pale); color: var(--ink);
-  font-size: 13px;
+  font-size: var(--text-body);
 }
 
 .shortcuts { width: min(440px, 100%); padding: 20px 22px 18px; }
@@ -194,10 +194,10 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKeydown));
 .shortcut-list > div { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 8px 0; border-bottom: 1px solid var(--line); }
 .shortcut-list > div:last-child { border-bottom: 0; }
 .shortcut-list dt { display: flex; gap: 4px; margin: 0; }
-.shortcut-list dd { margin: 0; color: var(--muted); font-size: 13px; }
+.shortcut-list dd { margin: 0; color: var(--muted); font-size: var(--text-body); }
 .shortcut-list kbd {
   display: inline-grid; place-items: center; min-width: 24px; height: 24px; padding: 0 6px;
   border: 1px solid var(--line-strong); border-bottom-width: 2px; border-radius: 6px;
-  background: var(--surface-soft); color: var(--ink-soft); font-size: 11.5px; font-weight: 650;
+  background: var(--surface-soft); color: var(--ink-soft); font-size: var(--text-2xs); font-weight: 650;
 }
 </style>

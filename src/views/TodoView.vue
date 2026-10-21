@@ -219,8 +219,8 @@ function label(task) {
 }
 .composer > img { width: 19px; height: 19px; opacity: .6; flex: 0 0 19px; }
 .composer:focus-within { box-shadow: var(--ring); }
-.composer input { flex: 1; min-width: 0; height: 40px; border: 0; background: transparent; outline: none; font-size: 14px; }
-.composer-hint { margin-top: -12px; padding-left: 4px; font-size: 12px; color: var(--muted); }
+.composer input { flex: 1; min-width: 0; height: 40px; border: 0; background: transparent; outline: none; font-size: var(--text-body); }
+.composer-hint { margin-top: -12px; padding-left: 4px; font-size: var(--text-meta); color: var(--muted); }
 
 .toolbar {
   display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap;
@@ -235,7 +235,7 @@ function label(task) {
 .list-head {
   display: grid; grid-template-columns: 24px minmax(0, 720px) minmax(220px, 1fr) 110px 112px;
   gap: 14px; padding: 12px 20px; background: var(--surface-soft); border-bottom: 1px solid var(--line);
-  font-size: 12px; font-weight: 600; color: var(--muted);
+  font-size: var(--text-meta); font-weight: 600; color: var(--muted);
 }
 /* Header labels sit over their own columns so the alignment reads as a table. */
 .list-head > span:nth-child(1) { grid-column: 2; }
@@ -249,12 +249,12 @@ function label(task) {
 }
 .task-list li:last-child { border-bottom: 0; }
 .task-copy { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
-.task-copy strong { font-size: 14px; font-weight: 600; overflow-wrap: anywhere; line-height: 1.5; }
+.task-copy strong { font-size: var(--text-body); font-weight: 600; overflow-wrap: anywhere; line-height: 1.5; }
 .task-list li.done .task-copy strong { text-decoration: line-through; color: var(--muted); }
 
 /* Priority and tag as their own column, so the width is used for information instead of
    being turned into a gap between the title and the date. */
-.task-meta { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 12px; color: var(--muted); }
+.task-meta { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: var(--text-meta); color: var(--muted); }
 .prio-badge {
   display: inline-flex; align-items: center; gap: 5px; flex: 0 0 auto;
   padding: 2px 8px; border-radius: 999px;
@@ -268,13 +268,13 @@ function label(task) {
 .prio.high { background: var(--coral); }
 .prio.medium { background: var(--amber); }
 .prio.low { background: var(--brand); }
-.task-due { font-size: 12px; color: var(--muted); white-space: nowrap; }
+.task-due { font-size: var(--text-meta); color: var(--muted); white-space: nowrap; }
 .task-due.overdue { color: var(--coral); font-weight: 600; }
 .task-actions { display: flex; align-items: center; gap: 1px; justify-content: flex-end; }
 .task-actions .btn-icon { width: 34px; height: 34px; flex-basis: 34px; }
 .task-actions .btn-icon img { width: 15px; height: 15px; }
 
-.foot-note { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--muted); }
+.foot-note { display: flex; align-items: center; gap: 8px; font-size: var(--text-sm); color: var(--muted); }
 .foot-note img { width: 16px; height: 16px; opacity: .6; }
 .list-foot {
   display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap;

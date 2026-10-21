@@ -95,38 +95,38 @@ function searchCity() {
 .weather-error {
   display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
   padding: 10px 14px; border: 1px solid var(--coral); border-radius: var(--radius-control);
-  background: var(--coral-pale); color: var(--ink); font-size: 13px;
+  background: var(--coral-pale); color: var(--ink); font-size: var(--text-body);
 }
-.privacy { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; color: var(--muted); }
+.privacy { display: inline-flex; align-items: center; gap: 7px; font-size: var(--text-meta); color: var(--muted); }
 .privacy img { width: 16px; height: 16px; opacity: .6; }
 .weather-hero { display: flex; flex-direction: column; gap: 18px; }
 .weather-main { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
 .weather-icon { width: 84px; height: 84px; object-fit: contain; }
 .weather-copy { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
-.weather-city { font-size: 13px; font-weight: 600; color: var(--brand-deep); }
-.weather-temp { font-size: 34px; font-weight: 800; letter-spacing: -.03em; line-height: 1.15; display: block; }
-.weather-copy small { font-size: 12.5px; color: var(--muted); }
-.weather-copy .updated { font-size: 11.5px; opacity: .8; }
+.weather-city { font-size: var(--text-body); font-weight: 600; color: var(--brand-deep); }
+.weather-temp { font-size: var(--text-hero); font-weight: 800; letter-spacing: -.03em; line-height: 1.15; display: block; }
+.weather-copy small { font-size: var(--text-sm); color: var(--muted); }
+.weather-copy .updated { font-size: var(--text-2xs); opacity: .8; }
 .weather-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .city-search { display: flex; align-items: center; gap: 8px; flex: 1 1 260px; max-width: 420px; }
 .city-search .input { flex: 1; min-width: 0; }
-.tiny { font-size: 12.5px; color: var(--muted); line-height: 1.6; }
+.tiny { font-size: var(--text-sm); color: var(--muted); line-height: 1.6; }
 
 .weather-lower { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--shell-gap); align-items: start; }
 .tips { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
-.tips li { display: flex; align-items: flex-start; gap: 10px; padding: 11px 13px; border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--surface-soft); font-size: 13px; line-height: 1.6; }
+.tips li { display: flex; align-items: flex-start; gap: 10px; padding: 11px 13px; border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--surface-soft); font-size: var(--text-body); line-height: 1.6; }
 .tips img { width: 22px; height: 22px; object-fit: contain; flex: 0 0 22px; }
 
 .forecast { display: flex; flex-direction: column; }
-.forecast-day { display: grid; grid-template-columns: 52px 30px minmax(0, 1fr) auto auto; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); font-size: 12.5px; }
+.forecast-day { display: grid; grid-template-columns: 52px 30px minmax(0, 1fr) auto auto; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); font-size: var(--text-sm); }
 .forecast-day:last-child { border-bottom: 0; }
 .day-label { font-weight: 600; color: var(--ink-soft); }
 .forecast-day img { width: 26px; height: 26px; object-fit: contain; }
 .day-txt { color: var(--muted); overflow-wrap: anywhere; }
 .day-temp { color: var(--ink); font-weight: 600; white-space: nowrap; }
-.day-pop { color: var(--muted); font-size: 11.5px; white-space: nowrap; }
+.day-pop { color: var(--muted); font-size: var(--text-2xs); white-space: nowrap; }
 
-.attribution { font-size: 12.5px; color: var(--muted); line-height: 1.7; }
+.attribution { font-size: var(--text-sm); color: var(--muted); line-height: 1.7; }
 .attribution a { color: var(--brand); text-decoration: none; }
 .attribution a:hover { text-decoration: underline; }
 
@@ -135,7 +135,7 @@ function searchCity() {
 }
 @media (max-width: 560px) {
   .weather-icon { width: 64px; height: 64px; }
-  .weather-temp { font-size: 27px; }
+  .weather-temp { font-size: var(--text-h1); }
   .forecast-day { grid-template-columns: 44px 26px minmax(0, 1fr) auto; }
   .day-pop { display: none; }
 }

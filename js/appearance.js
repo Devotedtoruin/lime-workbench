@@ -29,7 +29,7 @@ export function defaultAppearance() {
     version: 2, theme: 'system', preset: 'aurora', opacity: 0.52,
     backgroundBlur: 4, panelBlur: 14, radius: 12, density: 'compact',
     accent: 'green', font: 'system', backgroundImage: '',
-    backgroundAssetId: '', fontAssetId: '', motion: 'system', cardStyle: 'glass',
+    backgroundAssetId: '', fontAssetId: '', motion: 'system', cardStyle: 'solid',
     backgroundDim: 0, fontScale: 1,
     widgets: Object.fromEntries(WIDGET_NAMES.map(name => [name, true]))
   };
@@ -73,6 +73,18 @@ export function validateAppearance(value) {
   try { return validRecord(value, 2); } catch { return false; }
 }
 
+/** Older v2 records may predate a widget/field; fill known defaults before judging them. */
+function fillAppearance(value) {
+  if (!plain(value) || value.version !== 2) return null;
+  const defaults = defaultAppearance();
+  const merged = { ...defaults };
+  for (const key of Object.keys(defaults)) {
+    if (own(value, key)) merged[key] = value[key];
+  }
+  if (plain(value.widgets)) merged.widgets = { ...defaults.widgets, ...value.widgets };
+  return validateAppearance(merged) ? merged : null;
+}
+
 function storageOrDefault(storage) {
   return storage === undefined ? globalThis.localStorage : storage;
 }
@@ -94,6 +106,8 @@ export function readAppearanceStatus(storage) {
       let parsed;
       try { parsed = parseRecord(raw); } catch { return result('corrupt', false, 'v2'); }
       if (validateAppearance(parsed)) return result('ready', true, 'v2', copy(parsed));
+      const filled = fillAppearance(parsed);
+      if (filled) return result('migrated', true, 'v2', copy(filled));
       const future = plain(parsed) && typeof parsed.version === 'number' && parsed.version > 2;
       return result(future ? 'future' : 'corrupt', false, 'v2');
     }
@@ -156,10 +170,12 @@ export function applyAppearance(config) {
   for (const element of [root, doc.body].filter(Boolean)) {
     for (const key of ['density', 'accent', 'font', 'preset', 'cardStyle', 'motion']) element.dataset[key] = safe[key];
   }
+  const image = safe.backgroundImage ? `url("${safe.backgroundImage}")` : 'none';
+  // .scene consumes this on :root; the fixed #workbenchBackground layer is a legacy hook.
+  root.style.setProperty('--background-image', image);
   const background = doc.getElementById('workbenchBackground');
   if (background) {
     // The alphabet allowed above cannot break out of a quoted CSS url().
-    const image = safe.backgroundImage ? `url("${safe.backgroundImage}")` : 'none';
     background.style.backgroundImage = image;
     background.style.setProperty('--background-image', image);
   }

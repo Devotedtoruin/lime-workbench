@@ -6,7 +6,7 @@ import { rangeSummary, heatmapWeeks, focusStreak } from '../../js/focus-stats.js
 
 const wb = useWorkbench();
 
-const customMinutes = ref(25);
+const customMinutes = ref(wb.state.settings.focusMinutes || 25);
 const durationPresets = [15, 25, 50, 90];
 const intentText = ref(wb.state.focus.text || '');
 
@@ -69,7 +69,7 @@ function applyIntent() {
       </div>
       <p class="hero-clock numeric" :class="{ running: wb.state.focus.running }">{{ wb.focusClockText.value }}</p>
       <p class="hero-status">{{ statusText }}</p>
-      <div class="hero-track"><i :style="{ width: `${wb.focusProgressPct.value}%` }"></i></div>
+      <div class="hero-track"><i :style="{ transform: `scaleX(${wb.focusProgressPct.value / 100})` }"></i></div>
 
       <div class="hero-presets">
         <button
@@ -239,32 +239,32 @@ function applyIntent() {
   padding: clamp(20px, 3.2vh, 34px) clamp(18px, 3vw, 28px);
 }
 .hero-top { display: flex; align-items: center; justify-content: space-between; width: 100%; }
-.focus-kicker { display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; font-weight: 700; color: var(--brand-deep); }
+.focus-kicker { display: inline-flex; align-items: center; gap: 7px; font-size: var(--text-sm); font-weight: 700; color: var(--brand-deep); }
 .focus-kicker i { width: 6px; height: 6px; border-radius: 50%; background: var(--brand); }
 .hero-clock {
   font-size: clamp(52px, 7vw, 76px); font-weight: 650; letter-spacing: -.045em; line-height: 1.05;
   margin: clamp(8px, 1.4vh, 16px) 0 4px;
 }
 .hero-clock.running { color: var(--brand-deep); }
-.hero-status { font-size: 13px; color: var(--muted); }
+.hero-status { font-size: var(--text-body); color: var(--muted); }
 .hero-track { width: min(520px, 100%); height: 4px; margin-top: clamp(10px, 1.6vh, 18px); border-radius: 99px; background: var(--line); overflow: hidden; }
-.hero-track i { display: block; width: 0; height: 100%; border-radius: 99px; background: linear-gradient(90deg, var(--brand), var(--lime)); transition: width var(--motion-slow) linear; }
+.hero-track i { display: block; width: 100%; height: 100%; border-radius: 99px; background: linear-gradient(90deg, var(--brand), var(--lime)); transform-origin: left center; transition: transform var(--motion-slow) linear; }
 .hero-presets { display: flex; flex-wrap: wrap; justify-content: center; gap: 7px; margin-top: clamp(10px, 1.6vh, 18px); }
 .btn.is-picked { border-color: var(--brand); background: var(--brand-pale); color: var(--brand-deep); }
 .hero-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: center; margin-top: clamp(10px, 1.6vh, 18px); }
 .hero-play { min-height: 46px; padding: 0 24px; }
 .hero-custom { display: flex; align-items: center; gap: 8px; }
 .hero-custom .input { width: 96px; min-height: 44px; text-align: center; }
-.hero-total { margin-top: 18px; font-size: 12.5px; color: var(--muted); }
+.hero-total { margin-top: 18px; font-size: var(--text-sm); color: var(--muted); }
 .hero-total strong { color: var(--ink); font-weight: 700; }
 .linked-task { display: flex; align-items: center; gap: 12px; margin-top: 12px; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--surface-soft); }
 .linked-task > div { flex: 1; min-width: 0; }
-.linked-task strong { display: block; font-size: 13.5px; font-weight: 600; overflow-wrap: anywhere; }
-.linked-task small { font-size: 12px; color: var(--muted); }
+.linked-task strong { display: block; font-size: var(--text-body); font-weight: 600; overflow-wrap: anywhere; }
+.linked-task small { font-size: var(--text-meta); color: var(--muted); }
 .pick-tasks { margin-top: 16px; }
-.pick-title { font-size: 12px; color: var(--muted); margin-bottom: 8px; }
+.pick-title { font-size: var(--text-meta); color: var(--muted); margin-bottom: 8px; }
 .pick-list { display: flex; flex-wrap: wrap; gap: 7px; }
-.pick-chip { border: 1px solid var(--line); border-radius: var(--radius-pill); background: var(--surface); min-height: 32px; padding: 0 12px; font-size: 12px; color: var(--ink-soft); }
+.pick-chip { border: 1px solid var(--line); border-radius: var(--radius-pill); background: var(--surface); min-height: 32px; padding: 0 12px; font-size: var(--text-meta); color: var(--ink-soft); }
 .pick-chip:hover { border-color: var(--brand); color: var(--brand-deep); background: var(--brand-pale); }
 
 /* ---------- 专注记录 ---------- */
@@ -278,14 +278,14 @@ function applyIntent() {
   padding: 12px 14px; border-radius: var(--radius-control);
   border: 1px solid var(--line); background: color-mix(in srgb, var(--surface) 55%, transparent);
 }
-.stat small { font-size: 11.5px; color: var(--muted); }
+.stat small { font-size: var(--text-2xs); color: var(--muted); }
 .stat strong { font-size: 21px; font-weight: 800; letter-spacing: -.02em; line-height: 1.15; }
-.stat strong em { font-style: normal; margin-left: 3px; font-size: 11.5px; font-weight: 600; color: var(--muted); }
+.stat strong em { font-style: normal; margin-left: 3px; font-size: var(--text-2xs); font-weight: 600; color: var(--muted); }
 .stat-change strong.up { color: var(--brand-deep); }
 .stat-change strong.down { color: var(--coral); }
 .muted-value { color: var(--muted); }
 
-.group-label { font-size: 12px; font-weight: 700; color: var(--ink-soft); margin: 0 0 9px; }
+.group-label { font-size: var(--text-meta); font-weight: 700; color: var(--ink-soft); margin: 0 0 9px; }
 
 .bar-chart {
   display: flex; align-items: flex-end; gap: 4px;

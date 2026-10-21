@@ -20,7 +20,7 @@ test('default appearance is independent, complete, and compact glass', () => {
   assert.equal(APPEARANCE_STORAGE_KEY, 'lime-appearance-v2');
   assert.equal(LEGACY_APPEARANCE_STORAGE_KEY, 'lime-appearance-v1');
   assert.equal(a.backgroundAssetId, ''); assert.equal(a.fontAssetId, '');
-  assert.equal(a.motion, 'system'); assert.equal(a.cardStyle, 'glass');
+  assert.equal(a.motion, 'system'); assert.equal(a.cardStyle, 'solid');
   assert.equal(a.backgroundDim, 0); assert.equal(a.fontScale, 1);
   assert.equal(a.opacity, 0.52); assert.equal(a.radius, 12);
   assert.equal(a.panelBlur, 14); assert.equal(a.backgroundBlur, 4);
@@ -300,7 +300,10 @@ test('Vue design system keeps liquid-glass tokens and a floating collapsible rai
   assert.match(glass, /\.glass\s*\{[^}]*backdrop-filter:\s*blur\(var\(--glass-blur\)\)\s*saturate\(var\(--glass-saturate\)\)/);
   assert.match(glass, /\.rim::before\s*\{[^}]*mask-composite:\s*exclude/);
   assert.match(glass, /\.card-hover:hover\s*\{[^}]*transform:\s*translateY\(-2px\)/);
-  assert.match(glass, /\.spot::after,\s*\.panel\.glass::after\s*\{[^}]*radial-gradient/);
+  assert.match(glass, /\.spot::after\s*\{[^}]*radial-gradient/);
+  // Content panels are solid by default; the optional "glass" card style restores the blur.
+  assert.match(glass, /\.panel\.glass\s*\{[^}]*background:\s*var\(--surface\)/);
+  assert.match(glass, /\[data-card-style="glass"\]\s*\.panel\.glass\s*\{[^}]*backdrop-filter/);
 
   // Floating-island collapsible sidebar with a phone off-canvas drawer.
   assert.match(base, /--sidebar-w:\s*240px/);

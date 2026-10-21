@@ -321,6 +321,10 @@ export async function prepareLocalAsset(file, { kind = 'avatar' } = {}) {
     dimensions(info.width, info.height, limits[kind]);
     if (file.size > limits[kind].bytes) throw new Error(`动态图不能超过 ${limits[kind].bytes / MiB} MiB`);
   }
+  // Reject oversized headers before decoding: a 10 MB PNG can declare billions of pixels.
+  if (info && info.width * info.height > MAX_IMAGE_PIXELS) {
+    throw new Error('图片超过5000万像素，请先缩小');
+  }
   const url = URL.createObjectURL(file);
   try {
     const image = await decodeImage(url), width = image.naturalWidth, height = image.naturalHeight;

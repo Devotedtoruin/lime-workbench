@@ -94,19 +94,19 @@ function act(alert, action) {
 
 <style scoped>
 .notif-modal { width: min(520px, 100%); }
-.block-title { display: flex; align-items: center; gap: 8px; font-size: 12.5px; font-weight: 700; color: var(--muted); letter-spacing: .02em; margin-bottom: 10px; }
+.block-title { display: flex; align-items: center; gap: 8px; font-size: var(--text-sm); font-weight: 700; color: var(--muted); letter-spacing: .02em; margin-bottom: 10px; }
 .pulse-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--coral); box-shadow: 0 0 0 4px color-mix(in srgb, var(--coral) 16%, transparent); }
 .alert-block { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; }
 .alert-card { padding: 14px; border: 1px solid var(--line-strong); border-radius: var(--radius-control); background: var(--surface-soft); }
-.alert-copy strong { font-size: 14px; font-weight: 650; }
-.alert-copy p { margin: 4px 0 0; font-size: 13px; color: var(--ink-soft); line-height: 1.6; }
-.alert-copy small { display: block; margin-top: 4px; font-size: 12px; color: var(--muted); }
+.alert-copy strong { font-size: var(--text-body); font-weight: 650; }
+.alert-copy p { margin: 4px 0 0; font-size: var(--text-body); color: var(--ink-soft); line-height: 1.6; }
+.alert-copy small { display: block; margin-top: 4px; font-size: var(--text-meta); color: var(--muted); }
 .alert-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 .upcoming-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
 .upcoming-item { display: grid; grid-template-columns: 10px minmax(0, 1fr) auto; align-items: start; gap: 12px; padding: 11px 0; border-bottom: 1px solid var(--line); }
 .upcoming-item:last-child { border-bottom: 0; }
 .up-dot { width: 7px; height: 7px; margin-top: 7px; border-radius: 50%; background: var(--brand); box-shadow: 0 0 0 3px var(--brand-pale); }
-.up-copy strong { display: block; font-size: 13px; font-weight: 600; }
-.up-copy small { font-size: 12px; color: var(--muted); }
-.up-clock { font-size: 12px; color: var(--ink-soft); font-weight: 600; white-space: nowrap; }
+.up-copy strong { display: block; font-size: var(--text-body); font-weight: 600; }
+.up-copy small { font-size: var(--text-meta); color: var(--muted); }
+.up-clock { font-size: var(--text-meta); color: var(--ink-soft); font-weight: 600; white-space: nowrap; }
 </style>

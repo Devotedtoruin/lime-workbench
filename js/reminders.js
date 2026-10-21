@@ -174,7 +174,7 @@ export function makeOnce(label, dateKey, hhmm, text = label, now = new Date()) {
     label,
     text: text || label,
     date: dateKey,
-    time: hhmm,
+    time: `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`,
     nextAt,
     enabled: true
   };

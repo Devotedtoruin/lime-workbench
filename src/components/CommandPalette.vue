@@ -224,28 +224,28 @@ function onKeydown(event) {
 }
 .command-row { display: flex; align-items: center; gap: 11px; padding: 12px 12px 12px 18px; border-bottom: 1px solid var(--line); }
 .command-row > img { width: 19px; height: 19px; opacity: .55; flex: 0 0 19px; }
-.command-row input { flex: 1; min-width: 0; border: 0; background: transparent; font-size: 15px; outline: none; border-radius: 6px; }
+.command-row input { flex: 1; min-width: 0; border: 0; background: transparent; font-size: var(--text-md); outline: none; border-radius: 6px; }
 .command-row input:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
 .command-body { padding: 16px 18px; }
-.command-hint .hint-title { font-size: 13px; font-weight: 650; color: var(--ink-soft); margin-bottom: 10px; }
+.command-hint .hint-title { font-size: var(--text-body); font-weight: 650; color: var(--ink-soft); margin-bottom: 10px; }
 .suggest { display: flex; flex-wrap: wrap; gap: 8px; }
 .suggest button {
   border: 1px solid var(--line); border-radius: var(--radius-pill);
   background: var(--surface-soft); color: var(--ink-soft);
-  min-height: 34px; padding: 0 13px; font-size: 12.5px;
+  min-height: 34px; padding: 0 13px; font-size: var(--text-sm);
   transition: border-color var(--motion-fast), color var(--motion-fast), background-color var(--motion-fast);
 }
 .suggest button:hover { border-color: var(--brand); color: var(--brand-deep); background: var(--brand-pale); }
-.hint-foot { margin-top: 14px; font-size: 12px; color: var(--muted); }
+.hint-foot { margin-top: 14px; font-size: var(--text-meta); color: var(--muted); }
 .command-preview { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .preview-copy { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 180px; }
-.preview-copy strong { font-size: 14px; font-weight: 650; }
-.preview-copy small { font-size: 12px; color: var(--muted); }
+.preview-copy strong { font-size: var(--text-body); font-weight: 650; }
+.preview-copy small { font-size: var(--text-meta); color: var(--muted); }
 .preview-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
 .command-ai { display: flex; flex-direction: column; gap: 12px; }
-.ai-copy { font-size: 13px; color: var(--ink-soft); line-height: 1.65; }
-.ai-summary { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--muted); }
-.command-message { font-size: 13px; color: var(--ink-soft); line-height: 1.7; }
+.ai-copy { font-size: var(--text-body); color: var(--ink-soft); line-height: 1.65; }
+.ai-summary { display: flex; align-items: center; gap: 8px; font-size: var(--text-sm); color: var(--muted); }
+.command-message { font-size: var(--text-body); color: var(--ink-soft); line-height: 1.7; }
 
 /* 搜索结果 */
 .command-results { display: flex; flex-direction: column; gap: 2px; }
@@ -261,17 +261,17 @@ function onKeydown(event) {
 .result-kind {
   flex: 0 0 auto; min-width: 38px; padding: 2px 6px; text-align: center;
   border-radius: 5px; background: var(--surface-soft); border: 1px solid var(--line);
-  font-size: 11.5px; font-weight: 650; color: var(--muted);
+  font-size: var(--text-2xs); font-weight: 650; color: var(--muted);
 }
 .result-row.is-active .result-kind { background: var(--surface); color: var(--brand-deep); border-color: color-mix(in srgb, var(--brand) 24%, var(--line)); }
 .result-copy { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
-.result-copy strong { font-size: 13.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.result-copy small { font-size: 11.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.result-copy strong { font-size: var(--text-body); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.result-copy small { font-size: var(--text-2xs); color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .result-row > img { width: 14px; height: 14px; opacity: 0; flex: 0 0 14px; }
 .result-row.is-active > img { opacity: .5; }
 .command-foot {
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
   padding: 10px 18px; border-top: 1px solid var(--line);
-  font-size: 12px; color: var(--muted);
+  font-size: var(--text-meta); color: var(--muted);
 }
 </style>

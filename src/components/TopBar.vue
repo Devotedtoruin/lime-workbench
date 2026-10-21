@@ -108,9 +108,9 @@ onBeforeUnmount(() => window.removeEventListener('scroll', onScroll));
 .menu-bars i:nth-child(3) { top: 10px; }
 
 .crumb { display: flex; align-items: baseline; gap: 8px; min-width: 0; flex-wrap: wrap; }
-.crumb-page { font-size: 13px; font-weight: 700; color: var(--ink); letter-spacing: -.01em; }
+.crumb-page { font-size: var(--text-body); font-weight: 700; color: var(--ink); letter-spacing: -.01em; }
 .crumb-sep { color: var(--muted); opacity: .6; }
-.crumb-now { font-size: 13px; color: var(--muted); }
+.crumb-now { font-size: var(--text-body); color: var(--muted); }
 
 .topbar-actions { display: flex; align-items: center; gap: 8px; min-width: 0; }
 
@@ -124,9 +124,9 @@ onBeforeUnmount(() => window.removeEventListener('scroll', onScroll));
 }
 .command-trigger:hover { border-color: var(--line-strong); color: var(--ink-soft); background: var(--surface); }
 .command-trigger img { width: 17px; height: 17px; opacity: .6; }
-.command-trigger span { flex: 1; min-width: 0; font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.command-trigger span { flex: 1; min-width: 0; font-size: var(--text-sm); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 kbd {
-  font-family: inherit; font-size: 12px; color: var(--muted);
+  font-family: inherit; font-size: var(--text-meta); color: var(--muted);
   border: 1px solid var(--line); border-radius: 5px; background: var(--surface);
   padding: 1px 5px; white-space: nowrap;
 }
@@ -140,8 +140,8 @@ kbd {
 }
 .weather-pill:hover { background: var(--surface-soft); border-color: var(--line); }
 .weather-pill img { width: 20px; height: 20px; object-fit: contain; }
-.weather-pill span { font-size: 12.5px; font-weight: 600; white-space: nowrap; }
-.weather-pill small { font-size: 11.5px; color: var(--muted); white-space: nowrap; }
+.weather-pill span { font-size: var(--text-sm); font-weight: 600; white-space: nowrap; }
+.weather-pill small { font-size: var(--text-2xs); color: var(--muted); white-space: nowrap; }
 
 .notif-btn { position: relative; width: 38px; height: 38px; flex-basis: 38px; }
 .notif-badge {
@@ -165,11 +165,11 @@ kbd {
   width: 30px; height: 30px; flex: 0 0 30px; border-radius: 50%; overflow: hidden;
   display: grid; place-items: center;
   background: var(--brand-pale); color: var(--brand-deep);
-  font-size: 13px; font-weight: 750;
+  font-size: var(--text-body); font-weight: 750;
 }
 .avatar-frame img { width: 100%; height: 100%; object-fit: cover; }
 .avatar-placeholder { width: 18px !important; height: 18px !important; object-fit: contain; opacity: .55; }
-.avatar-name { font-size: 12.5px; font-weight: 650; max-width: 90px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.avatar-name { font-size: var(--text-sm); font-weight: 650; max-width: 90px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 @media (max-width: 1180px) {
   .command-trigger { width: 44px; padding: 0; justify-content: center; }

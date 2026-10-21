@@ -13,7 +13,7 @@
 // Bump CACHE_VERSION on every release. Bumping is what drops the previous cache; without it
 // users keep whatever shell they installed first.
 
-const CACHE_VERSION = 'v43';
+const CACHE_VERSION = 'v44';
 const SCOPE = new URL(self.registration.scope);
 const CACHE_PREFIX = `lime-workbench-${encodeURIComponent(SCOPE.href)}-`;
 const CACHE = `${CACHE_PREFIX}${CACHE_VERSION}`;
@@ -43,6 +43,28 @@ self.addEventListener('activate', event => {
   })());
 });
 
+// The hashed JS/CSS are not known at install time. Right after activation the page sends the
+// current document's own script/stylesheet URLs once, which makes the very first visit
+// offline-capable instead of requiring a second controlled load.
+self.addEventListener('message', event => {
+  const data = event.data;
+  if (!data || data.type !== 'CACHE_URLS' || !Array.isArray(data.urls)) return;
+  const urls = [...new Set(data.urls)]
+    .map(value => {
+      try {
+        const url = new URL(value, SCOPE);
+        return url.origin === SCOPE.origin ? url.href : null;
+      } catch { return null; }
+    })
+    .filter(Boolean)
+    .slice(0, 40);
+  if (!urls.length) return;
+  event.waitUntil((async () => {
+    const cache = await caches.open(CACHE);
+    await Promise.all(urls.map(url => cache.add(url).catch(() => {})));
+  })());
+});
+
 self.addEventListener('fetch', event => {
   const request = event.request;
   if (request.method !== 'GET') return;
@@ -55,8 +77,10 @@ self.addEventListener('fetch', event => {
     event.respondWith((async () => {
       try {
         const fresh = await fetch(request);
-        const cache = await caches.open(CACHE);
-        cache.put(HOME, fresh.clone());
+        if (fresh.ok) {
+          const cache = await caches.open(CACHE);
+          await cache.put(HOME, fresh.clone()).catch(() => {});
+        }
         return fresh;
       } catch {
         const cached = await caches.match(HOME) || await caches.match(SCOPE.href);

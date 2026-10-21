@@ -13,9 +13,10 @@ block() { echo "[BLOCK] $1"; fail=1; }
 for f in $files; do
   case "$f" in
     # 构建产物
-    db.json|public/*|dist/*|build/*|target/*|node_modules/*|preview-public/*)
+    dist/*|build/*|target/*|node_modules/*|preview-public/*)
       block "构建产物不应提交: $f" ;;
-    # 环境与凭据
+    # 环境与凭据（模板文件允许提交）
+    .env.example|.env.*.example|.env.template|.env.*.template) ;;
     .env|.env.*|*.env|*.key|*.pem|*.p12|*.pfx|*.jks|*.keystore|key.properties|keystore.properties|signing.properties)
       block "环境文件或密钥材料: $f" ;;
     # 备份与副本

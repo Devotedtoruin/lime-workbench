@@ -14,7 +14,7 @@
 html { min-width: 320px; background: var(--bg); scroll-behavior: smooth; scroll-padding-top: 96px; }
 body {
   margin: 0; min-height: 100vh; color: var(--ink);
-  font-family: var(--font-ui); font-size: 14px; line-height: 1.6;
+  font-family: var(--font-ui); font-size: var(--text-body); line-height: 1.6;
   -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
   font-kerning: normal; overflow-x: hidden;
 }
@@ -66,12 +66,6 @@ h1, h2, h3, h4, p { margin: 0; }
   /* Slow ambient drift: the light behind the glass shifts so the blur has something to catch.
      60s is deliberately below the threshold of noticing — it reads as depth, not animation.
      will-change keeps it on its own compositor layer so the drift never repaints the cards. */
-  animation: scene-drift 60s ease-in-out infinite alternate;
-  will-change: transform;
-}
-@keyframes scene-drift {
-  from { transform: translate3d(0, 0, 0) scale(1); }
-  to { transform: translate3d(-1.4%, 1.1%, 0) scale(1.06); }
 }
 .scene::after {
   content: ""; position: absolute; inset: 0;
@@ -125,6 +119,7 @@ body::before {
 /* Content panels are solid: only the shell (rail, topbar) and overlays keep the glass.
    This keeps 26px blur off every card and gives text a stable backing surface. */
 .panel.glass { background: var(--surface); background-image: none; backdrop-filter: none; -webkit-backdrop-filter: none; border-color: var(--line); box-shadow: var(--shadow-sm); }
+[data-card-style="glass"] .panel.glass { background: color-mix(in srgb, var(--surface) var(--glass-alpha), transparent); background-image: linear-gradient(var(--glass-veil), var(--glass-veil)); backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)); -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)); box-shadow: var(--shadow-sm), inset 0 1px 0 var(--glass-rim); }
 [data-card-style="solid"] .glass { background: var(--surface); backdrop-filter: none; -webkit-backdrop-filter: none; }
 [data-card-style="hairline"] .glass {
   background: color-mix(in srgb, var(--surface) 94%, transparent);
@@ -154,8 +149,7 @@ body::before {
 /* 聚光灯：光标处一片跟随的镜面高光。
    只用伪元素实现，不碰元素自身的 background-image —— 面板、KPI 卡各自覆写了背景，
    叠加背景层会互相覆盖。强度经 @property 注册，因此能平滑淡入而不是瞬时出现。 */
-.spot,
-.panel.glass {
+.spot {
   position: relative;
   transition: transform 320ms var(--ease-out), box-shadow 320ms var(--ease-out),
     border-color 320ms var(--ease-out);
@@ -163,8 +157,7 @@ body::before {
 /* 内层高光：贴着光标的核心亮斑。
    半径再收一档：90/190px 在 1900px 宽的卡片上仍是一团明显的绿色。现在 56/120px 更像
    一小片反光，而不是给整块面板染色。 */
-.spot::after,
-.panel.glass::after {
+.spot::after {
   content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
   background:
     radial-gradient(56px circle at var(--mx, 50%) var(--my, 50%),
@@ -177,20 +170,19 @@ body::before {
 }
 
 /* 跟随光标的边缘描边已并入 .rim::before 的渐变层，见上。 */
-.spot:hover,
-.panel.glass:hover {
+.spot:hover {
   --spot-alpha: 1;
   transform: translateY(-2px);
   box-shadow: var(--shadow-md), inset 0 1px 0 var(--glass-rim);
   border-color: color-mix(in srgb, var(--brand) 34%, var(--line));
 }
-.spot > *, .panel.glass > * { position: relative; z-index: 1; }
+.spot > * { position: relative; z-index: 1; }
 
 /* ---------- 按钮 ---------- */
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
   min-height: 40px; padding: 0 16px; border-radius: var(--radius-control);
-  font-size: 14px; font-weight: 600; white-space: nowrap;
+  font-size: var(--text-body); font-weight: 600; white-space: nowrap;
   transition: background-color var(--motion-fast), border-color var(--motion-fast),
     color var(--motion-fast), box-shadow var(--motion-fast), transform var(--motion-fast) var(--ease-out);
 }
@@ -207,11 +199,11 @@ body::before {
 .btn-soft:hover:not(:disabled) { background: var(--surface-soft); color: var(--ink); border-color: color-mix(in srgb, var(--brand) 40%, var(--line-strong)); }
 .btn-ghost { border: 1px solid transparent; background: transparent; color: var(--ink-soft); }
 .btn-ghost:hover:not(:disabled) { background: var(--surface-soft); color: var(--ink); }
-.btn-text { border: 0; background: transparent; color: var(--brand); padding: 4px 2px; min-height: 32px; font-size: 13px; }
+.btn-text { border: 0; background: transparent; color: var(--brand); padding: 4px 2px; min-height: 32px; font-size: var(--text-body); }
 .btn-text:hover:not(:disabled) { color: var(--brand-deep); text-decoration: underline; text-underline-offset: 3px; }
 .btn-danger-text { color: var(--coral); }
 .btn-danger-text:hover:not(:disabled) { color: var(--coral); }
-.btn-sm { min-height: 32px; padding: 0 11px; font-size: 12.5px; border-radius: 10px; }
+.btn-sm { min-height: 32px; padding: 0 11px; font-size: var(--text-sm); border-radius: 10px; }
 .btn-sm img { width: 15px; height: 15px; flex-basis: 15px; }
 .btn-icon {
   display: grid; place-items: center; width: 40px; height: 40px; flex: 0 0 40px;
@@ -224,12 +216,12 @@ body::before {
 
 /* ---------- 表单 ---------- */
 .field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
-.field > span, .field-label { font-size: 13px; font-weight: 600; color: var(--ink-soft); }
-.field small { font-size: 12.5px; color: var(--muted); }
+.field > span, .field-label { font-size: var(--text-body); font-weight: 600; color: var(--ink-soft); }
+.field small { font-size: var(--text-sm); color: var(--muted); }
 .input {
   width: 100%; min-height: 42px; padding: 9px 13px;
   border: 1px solid var(--line-strong); border-radius: var(--radius-control);
-  background: var(--surface); color: var(--ink); font-size: 14px;
+  background: var(--surface); color: var(--ink); font-size: var(--text-body);
   transition: border-color var(--motion-fast), box-shadow var(--motion-fast);
 }
 .input::placeholder { color: var(--muted); opacity: 1; }
@@ -247,7 +239,7 @@ select.input {
   display: inline-flex; align-items: center; gap: 5px;
   min-height: 22px; padding: 1px 8px; border-radius: 7px;
   background: var(--surface-soft); color: var(--ink-soft);
-  font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums;
+  font-size: var(--text-meta); font-weight: 600; font-variant-numeric: tabular-nums;
   border: 1px solid var(--line);
 }
 .badge-brand { background: var(--brand-pale); color: var(--brand-deep); border-color: color-mix(in srgb, var(--brand) 22%, transparent); }
@@ -272,10 +264,10 @@ select.input {
 /* ---------- 面板骨架 ---------- */
 .panel { padding: var(--s5); }
 .panel-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; min-width: 0; }
-.panel-title { display: flex; align-items: center; gap: 9px; font-size: 15.5px; font-weight: 700; letter-spacing: -.01em; min-width: 0; }
+.panel-title { display: flex; align-items: center; gap: 9px; font-size: var(--text-md); font-weight: 700; letter-spacing: -.01em; min-width: 0; }
 .panel-title img { width: 17px; height: 17px; opacity: .7; }
 .panel-actions { display: flex; align-items: center; gap: 4px; flex: 0 0 auto; }
-.panel-sub { font-size: 13px; color: var(--muted); }
+.panel-sub { font-size: var(--text-body); color: var(--muted); }
 .divider { height: 1px; background: var(--line); margin: 14px 0; border: 0; }
 
 /* ---------- 空状态 ---------- */
@@ -284,7 +276,7 @@ select.input {
   gap: 8px; padding: 18px 20px; text-align: center;
   border: 0; border-radius: var(--radius-control);
   background: transparent;
-  color: var(--muted); font-size: 13px; line-height: 1.55;
+  color: var(--muted); font-size: var(--text-body); line-height: 1.55;
   /* An empty panel that stretches across a wide page reads as a failed load. Keep it to a
      short centred message and let the panel shrink to fit it. */
   max-width: 62ch; margin-inline: auto;
@@ -292,10 +284,10 @@ select.input {
 /* 空状态不再套第二层边框：所在面板已经提供了边界，嵌套卡片只会增加视觉噪音 */
 .empty-art {
   width: 44px; height: 44px; display: grid; place-items: center; border-radius: 12px;
-  background: transparent; font-size: 26px; line-height: 1;
+  background: transparent; font-size: var(--text-h1); line-height: 1;
 }
 .empty-art img { width: 30px; height: 30px; opacity: .55; }
-.empty strong { font-size: 14px; font-weight: 650; color: var(--ink); }
+.empty strong { font-size: var(--text-body); font-weight: 650; color: var(--ink); }
 .empty p { max-width: 36ch; }
 
 /* ---------- 骨架屏 ---------- */
@@ -329,7 +321,7 @@ select.input {
 }
 @keyframes modal-in { from { opacity: 0; transform: translateY(10px) scale(.98); } to { opacity: 1; transform: none; } }
 .modal-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
-.modal-head h2 { font-size: 18px; font-weight: 750; letter-spacing: -.01em; }
+.modal-head h2 { font-size: var(--text-lg); font-weight: 750; letter-spacing: -.01em; }
 .modal-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 20px; flex-wrap: wrap; }
 .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
 
@@ -338,7 +330,7 @@ select.input {
   position: fixed; left: 50%; bottom: calc(26px + env(safe-area-inset-bottom)); z-index: 120; transform: translate(-50%, 16px);
   max-width: min(88vw, 480px); padding: 11px 18px; border-radius: var(--radius-pill);
   background: color-mix(in srgb, var(--ink) 92%, transparent); color: var(--surface);
-  font-size: 13.5px; font-weight: 550; box-shadow: var(--shadow-lg);
+  font-size: var(--text-body); font-weight: 550; box-shadow: var(--shadow-lg);
   opacity: 0; pointer-events: none;
   transition: opacity var(--motion-base), transform var(--motion-base) var(--ease-spring);
 }
@@ -358,7 +350,7 @@ select.input {
 }
 .undo-bar button {
   border: 0; border-radius: var(--radius-pill); min-height: 34px; padding: 0 14px;
-  background: var(--surface); color: var(--ink); font-size: 13px; font-weight: 650;
+  background: var(--surface); color: var(--ink); font-size: var(--text-body); font-weight: 650;
 }
 
 /* ---------- 分段控件 / 标签页 ---------- */
@@ -371,7 +363,7 @@ select.input {
 .segmented::-webkit-scrollbar { display: none; }
 .segmented button {
   border: 1px solid transparent; background: transparent; color: var(--muted);
-  min-height: 32px; padding: 0 12px; border-radius: 9px; font-size: 13px; font-weight: 550;
+  min-height: 32px; padding: 0 12px; border-radius: 9px; font-size: var(--text-body); font-weight: 550;
   flex: 0 0 auto; white-space: nowrap;
   transition: background-color var(--motion-fast), color var(--motion-fast), box-shadow var(--motion-fast);
 }
@@ -383,15 +375,15 @@ select.input {
 .tab-count {
   display: inline-grid; place-items: center; min-width: 20px; height: 18px; padding: 0 5px;
   margin-left: 6px; border-radius: 6px; background: var(--surface-soft);
-  font-size: 11.5px; font-weight: 650; font-variant-numeric: tabular-nums;
+  font-size: var(--text-2xs); font-weight: 650; font-variant-numeric: tabular-nums;
 }
 .segmented button.is-active .tab-count { background: var(--brand-pale); color: var(--brand-deep); }
 
 /* ---------- 页面通用 ---------- */
 .page-shell { display: flex; flex-direction: column; gap: var(--s5); padding-bottom: 40px; }
 .page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
-.page-head h1 { font-size: 27px; font-weight: 800; letter-spacing: -.025em; line-height: 1.22; }
-.page-head .sub { margin-top: 6px; color: var(--muted); font-size: 13.5px; max-width: 70ch; }
+.page-head h1 { font-size: var(--text-h1); font-weight: 800; letter-spacing: -.025em; line-height: 1.22; }
+.page-head .sub { margin-top: 6px; color: var(--muted); font-size: var(--text-body); max-width: 70ch; }
 .page-head-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 
 /* 滚动入场（仅路由切换） */
@@ -401,8 +393,10 @@ select.input {
 /* ---------- 页面切换（View Transitions） ----------
    导航方向写在 html[data-nav-dir] 上：向下滑入 / 向上滑入，让侧栏获得空间记忆。
    浏览器不支持时整段规则不生效，页面直接切换。 */
-::view-transition-old(main-content) { animation: vt-out 180ms var(--ease-out) both; }
-::view-transition-new(main-content) { animation: vt-in 260ms var(--ease-out) both; }
+::view-transition-old(root), ::view-transition-new(root) { animation: none; }
+::view-transition-group(main-content) { overflow: clip; }
+::view-transition-old(main-content) { animation: vt-out 120ms var(--ease-out) both; }
+::view-transition-new(main-content) { animation: vt-in 220ms 80ms var(--ease-out) both; }
 @keyframes vt-out {
   to { opacity: 0; transform: translateY(calc(var(--vt-dir, 1) * -10px)); }
 }
@@ -444,10 +438,14 @@ html[data-nav-dir="down"] { --vt-dir: 1; }
    全局 0.01ms 一刀切会把错误/成功反馈也一起抹掉，WCAG 2.2.1 下也不是必需。 */
 @media (prefers-reduced-motion: reduce) {
   .scene::before, .rim::before, .skeleton, .page-enter, .burst-ring, .edge-pulse,
-  .toast, .undo-bar, .modal, .command { animation: none !important; }
+  .toast, .undo-bar, .modal, .command, .overlay, .rail-backdrop, .split-menu { animation: none !important; }
   *, *::before, *::after { scroll-behavior: auto !important; }
   .glass, .btn, .input, .segmented button, .rail-item, .card-hover,
   .toast, .undo-bar { transition-duration: 120ms !important; }
+  .shell, .rail, .rail-tool img { transition: none !important; }
+  .toast, .undo-bar { transition-duration: 0.01ms !important; }
   .btn:active:not(:disabled), .btn-primary:hover:not(:disabled),
-  .card-hover:hover, .rail-item:hover { transform: none !important; }
+  .card-hover:hover, .rail-item:hover, .panel.glass:hover, .agenda-row:hover,
+  .note:hover, .link-card:hover { transform: none !important; }
+  .spot::after, .panel.glass::after { opacity: 0 !important; transition: none !important; }
 }

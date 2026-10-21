@@ -1,5 +1,5 @@
 <script setup>
-import { computed } from 'vue';
+import { computed, onBeforeUnmount, onMounted, watch } from 'vue';
 import { asset } from '../lib/assets.js';
 import { useWorkbench } from '../composables/useWorkbench.js';
 
@@ -29,6 +29,15 @@ function navigate(page) {
   wb.goto(page);
   wb.mobileDrawerOpen.value = false;
 }
+
+function onEscape(event) {
+  if (event.key === 'Escape' && wb.mobileDrawerOpen.value) wb.mobileDrawerOpen.value = false;
+}
+onMounted(() => window.addEventListener('keydown', onEscape));
+onBeforeUnmount(() => window.removeEventListener('keydown', onEscape));
+watch(drawerOpen, open => {
+  if (open) requestAnimationFrame(() => document.querySelector('.rail-item')?.focus());
+});
 </script>
 
 <template>
@@ -199,18 +208,18 @@ function navigate(page) {
 .rail-mark img { width: 100%; height: 100%; object-fit: cover; }
 .rail-brand-copy { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
 .rail-brand-copy strong {
-  font-size: 15.5px; font-weight: 800; letter-spacing: -.02em;
+  font-size: var(--text-md); font-weight: 800; letter-spacing: -.02em;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   color: var(--brand-deep);
 }
-.rail-brand-copy small { font-size: 12px; color: var(--muted); letter-spacing: .02em; white-space: nowrap; }
+.rail-brand-copy small { font-size: var(--text-meta); color: var(--muted); letter-spacing: .02em; white-space: nowrap; }
 
 /* 导航 */
 .rail-quick { display: grid; gap: 6px; margin: 14px 4px 4px; }
 .rail-quick-btn {
   display: flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 10px;
   border: 1px solid var(--line); border-radius: 10px; background: var(--surface);
-  color: var(--ink-soft); font-size: 12.5px; font-weight: 600;
+  color: var(--ink-soft); font-size: var(--text-sm); font-weight: 600;
 }
 .rail-quick-btn:hover { border-color: var(--line-strong); color: var(--ink); }
 .rail-quick-btn img { width: 15px; height: 15px; opacity: .6; flex: 0 0 15px; }
@@ -221,7 +230,7 @@ function navigate(page) {
 .rail.is-collapsed .rail-quick-btn span { display: none; }
 .rail-nav { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; display: flex; flex-direction: column; gap: 2px; padding: 0 2px 8px; overscroll-behavior: contain; }
 .rail-group {
-  margin: 14px 10px 6px; font-size: 12px; font-weight: 700;
+  margin: 14px 10px 6px; font-size: var(--text-meta); font-weight: 700;
   letter-spacing: .12em; text-transform: uppercase; color: var(--muted);
 }
 .rail-group:first-child { margin-top: 0; }
@@ -230,7 +239,7 @@ function navigate(page) {
   width: 100%; min-height: 42px; padding: 0 11px;
   border: 1px solid transparent; border-radius: var(--radius-control);
   background: transparent; color: var(--ink-soft); text-align: left;
-  font-size: 13.5px; font-weight: 550;
+  font-size: var(--text-body); font-weight: 550;
   transition: background-color var(--motion-fast), color var(--motion-fast), border-color var(--motion-fast);
 }
 .rail-item img { width: 19px; height: 19px; flex: 0 0 19px; opacity: .66; transition: transform var(--motion-fast), opacity var(--motion-fast); }
@@ -253,7 +262,7 @@ function navigate(page) {
 .rail-count {
   min-width: 20px; height: 19px; padding: 0 6px; display: inline-grid; place-items: center;
   border-radius: 6px; background: var(--surface); border: 1px solid var(--line);
-  color: var(--muted); font-size: 11.5px; font-weight: 650; font-variant-numeric: tabular-nums;
+  color: var(--muted); font-size: var(--text-2xs); font-weight: 650; font-variant-numeric: tabular-nums;
 }
 
 /* 底部：个人头像 */
@@ -269,14 +278,14 @@ function navigate(page) {
   width: 34px; height: 34px; flex: 0 0 34px; border-radius: 10px; overflow: hidden;
   display: grid; place-items: center;
   background: var(--brand-pale); color: var(--brand-deep);
-  font-size: 15px; font-weight: 750;
+  font-size: var(--text-md); font-weight: 750;
   border: 1px solid color-mix(in srgb, var(--brand) 18%, var(--line));
 }
 .rail-avatar img { width: 100%; height: 100%; object-fit: cover; }
 .rail-avatar-placeholder { width: 19px !important; height: 19px !important; object-fit: contain; opacity: .55; }
 .rail-user-copy { display: flex; flex-direction: column; min-width: 0; }
-.rail-user-copy strong { font-size: 13px; font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.rail-user-copy small { font-size: 12px; color: var(--muted); white-space: nowrap; }
+.rail-user-copy strong { font-size: var(--text-body); font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rail-user-copy small { font-size: var(--text-meta); color: var(--muted); white-space: nowrap; }
 .rail-tools { display: flex; align-items: center; gap: 1px; }
 .rail-tool { width: 34px; height: 34px; flex: 0 0 34px; border-radius: 9px; }
 .rail-tool img { width: 17px; height: 17px; }
@@ -304,8 +313,13 @@ function navigate(page) {
     transform: translateX(calc(-100% - 24px));
     width: min(300px, 84vw);
     padding-top: 22px;
+    visibility: hidden; pointer-events: none;
+    transition: transform var(--motion-slow) var(--ease-spring), visibility 0s var(--motion-slow);
   }
-  .rail.is-mobile-open { transform: none; }
+  .rail.is-mobile-open {
+    transform: none; visibility: visible; pointer-events: auto;
+    transition-delay: 0s;
+  }
   .rail.is-collapsed { width: min(300px, 84vw); }
   .rail.is-collapsed .rail-brand { justify-content: flex-start; padding: 2px 8px 18px; }
   .rail.is-collapsed .rail-brand-copy { display: flex; }

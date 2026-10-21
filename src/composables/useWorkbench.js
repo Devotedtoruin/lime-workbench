@@ -6,7 +6,7 @@ import {
   offCountdown, timeOnDate, monthSummary, pad
 } from '../../js/core.js';
 import { defaultState, parseBackup, MAX_BACKUP_CHARS, validateText, TEXT_LIMITS, COLLECTION_LIMITS } from '../../js/state.js';
-import { createStateStore, unavailableStorage } from '../../js/storage.js';
+import { createStateStore, unavailableStorage, STORAGE_KEY } from '../../js/storage.js';
 import {
   defaultAppearance, loadAppearance, saveAppearance, applyAppearance, resetAppearance, WIDGET_NAMES
 } from '../../js/appearance.js';
@@ -77,9 +77,13 @@ export function useWorkbench() {
   // Below 45% the glass stops guaranteeing readable text on the saturated presets.
   if (appearance.opacity < 0.45) appearance.opacity = 0.45;
   const storageBlocked = ref(Boolean(store.readError));
-  const nowTick = ref(Date.now());
-  const currentPage = ref(new URLSearchParams(location.search).get('page') || 'home');
+  const nowTick = ref(Date.now());  const currentPage = ref(new URLSearchParams(location.search).get('page') || 'home');
   if (!PAGE_LABELS[currentPage.value]) currentPage.value = 'home';
+  function syncDocumentTitle() {
+    document.title = `${workspaceNameOf(state.settings)} · ${PAGE_LABELS[currentPage.value] || '今天'}`;
+  }
+  syncDocumentTitle();
+  watch(currentPage, syncDocumentTitle);
 
   // 侧边栏状态（极简悬浮可折叠岛 + 移动端隐藏式抽屉）
   const railCollapsed = ref(false);
@@ -211,10 +215,32 @@ export function useWorkbench() {
       // is not, and needs a persistent banner rather than a 2.2s toast.
       if (!store.canWrite || error?.name === 'QuotaExceededError' ||
         error?.name === 'NS_ERROR_DOM_QUOTA_REACHED') storageBlocked.value = true;
-      showToast(error.message || '保存失败：本地存储空间不足或受限');
+      const message = String(error?.message || '');
+      showToast(message.startsWith('Invalid backup:')
+        ? '数据超出可保存上限或格式异常，请先导出并清理记录'
+        : (message || '保存失败：本地存储空间不足或受限'));
       return false;
     }
   }
+
+  // Another tab is the writer: adopt its record instead of keeping a stale snapshot, which
+  // otherwise turns the next local save into a STORAGE_CONFLICT and discards the local action.
+  function refreshFromStorage() {
+    try {
+      const latest = store.refresh();
+      if (store.readError) {
+        storageBlocked.value = true;
+        return;
+      }
+      Object.assign(state, latest);
+    } catch { /* storage unavailable; keep the current view */ }
+  }
+  window.addEventListener('storage', event => {
+    if (event.key === STORAGE_KEY) refreshFromStorage();
+  });
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) refreshFromStorage();
+  });
 
   // 主题与外观同步
   function syncThemeDOM() {
@@ -274,10 +300,18 @@ export function useWorkbench() {
   }
 
   let viewTransitionBusy = false;
+  let pendingNavigation = null;
 
   function goto(page, filter = null) {
     const target = PAGE_LABELS[page] ? page : 'home';
     if (filter) todoFilter.value = filter;
+
+    // A navigation during an in-flight transition must not call commitPage(): the running
+    // transition's update callback would overwrite it. Remember the last target and replay it.
+    if (viewTransitionBusy) {
+      pendingNavigation = { page: target, filter };
+      return;
+    }
 
     const from = PAGE_ORDER.indexOf(currentPage.value);
     const to = PAGE_ORDER.indexOf(target);
@@ -285,17 +319,19 @@ export function useWorkbench() {
     document.documentElement.dataset.navDir = direction > 0 ? 'down' : direction < 0 ? 'up' : '';
 
     const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-    if (typeof document.startViewTransition !== 'function' || reduced || target === currentPage.value ||
-      viewTransitionBusy) {
+    if (typeof document.startViewTransition !== 'function' || reduced || target === currentPage.value) {
       commitPage(target);
       return;
     }
     viewTransitionBusy = true;
-    // A second navigation while the snapshot is in flight would rewrite --vt-dir mid-animation
-    // and leave the previous transition's promises unhandled. Skip the transition instead.
     const transition = document.startViewTransition(() => commitPage(target));
-    transition.finished.then(() => { viewTransitionBusy = false; },
-      () => { viewTransitionBusy = false; });
+    const finish = () => {
+      viewTransitionBusy = false;
+      const pending = pendingNavigation;
+      pendingNavigation = null;
+      if (pending) goto(pending.page, pending.filter);
+    };
+    transition.finished.then(finish, finish);
   }
 
   // 个人形象计算属性（彻底废除独立 Logo，统一展示个人头像 + 昵称 + 工作台名称）
@@ -551,6 +587,15 @@ export function useWorkbench() {
     }
     const key = todayKey();
     const list = state.water[key] ? [...state.water[key]] : [];
+    if (list.length >= COLLECTION_LIMITS.waterPerDay) {
+      showToast(`今天最多记录 ${COLLECTION_LIMITS.waterPerDay} 次饮水`);
+      return false;
+    }
+    const totalEntries = Object.values(state.water).reduce((sum, entries) => sum + entries.length, 0);
+    if (totalEntries >= COLLECTION_LIMITS.waterTotal) {
+      showToast('饮水记录已达总量上限，请先导出并清理');
+      return false;
+    }
     list.push({ ml: amount, time: Date.now() });
     state.water[key] = list;
     if (!save()) return false;
@@ -583,6 +628,10 @@ export function useWorkbench() {
 
   // 账本操作
   function addLedgerRecord({ type = 'expense', amount, note = '', cat = CATEGORIES[0] }) {
+    if (state.ledger.length >= COLLECTION_LIMITS.ledger) {
+      showToast(`账目最多保存 ${COLLECTION_LIMITS.ledger} 条，请先导出并清理`);
+      return false;
+    }
     const amt = Math.abs(Number(amount) || 0);
     if (!amt || !Number.isFinite(amt) || amt > 1_000_000_000) {
       showToast('请输入有效金额');
@@ -681,6 +730,10 @@ export function useWorkbench() {
   const habitToday = computed(() => todayProgress(state.habits, todayStr.value));
 
   function addSportRecord({ type = 'run', minutes, distance = 0 }) {
+    if (state.sport.length >= COLLECTION_LIMITS.sport) {
+      showToast(`运动记录最多保存 ${COLLECTION_LIMITS.sport} 条，请先导出并清理`);
+      return false;
+    }
     const mins = Number(minutes) || 0;
     const dist = Number(distance) || 0;
     if (!inRange(mins, INPUT_RULES.sportMinutes) || !inRange(dist, INPUT_RULES.sportDistance)) {
@@ -882,7 +935,14 @@ export function useWorkbench() {
     }
   }
 
+  function ensureReminderCapacity() {
+    if (state.reminders.length < COLLECTION_LIMITS.reminders) return true;
+    showToast(`提醒最多保存 ${COLLECTION_LIMITS.reminders} 条，请先删除不再需要的提醒`);
+    return false;
+  }
+
   function addIntervalReminder(presetId, everyMinutes, customLabel = '') {
+    if (!ensureReminderCapacity()) return false;
     try {
       const r = makeInterval(presetId, Number(everyMinutes));
       r.id = uniqueReminderId(presetId);
@@ -900,6 +960,7 @@ export function useWorkbench() {
   }
 
   function addCountdownTimer(presetId, minutes, customLabel = '') {
+    if (!ensureReminderCapacity()) return false;
     try {
       const r = makeTimer(presetId, Number(minutes));
       r.id = uniqueReminderId(presetId);
@@ -917,6 +978,7 @@ export function useWorkbench() {
   }
 
   function addScheduledReminder({ label, repeat, date, time }) {
+    if (!ensureReminderCapacity()) return false;
     const clean = String(label || '').trim();
     if (!validateText(clean, TEXT_LIMITS.reminderLabel)) {
       showToast('请填写提醒事项名称');
@@ -1055,8 +1117,12 @@ export function useWorkbench() {
   // 备份导入与导出
   function exportBackupData() {
     try {
-      const json = JSON.stringify(state, null, 2);
-      parseBackup(json);
+      // Validate the compact form first: pretty-printing adds ~15% and can push a record that
+      // still saves correctly over the strict 2 MB import limit.
+      const compact = JSON.stringify(state);
+      parseBackup(compact);
+      const pretty = JSON.stringify(state, null, 2);
+      const json = pretty.length <= MAX_BACKUP_CHARS ? pretty : compact;
       const url = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
       const a = document.createElement('a');
       a.href = url;

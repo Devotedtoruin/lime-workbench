@@ -271,6 +271,20 @@ function array(value, limit, parse, ctx, path) {
   return result;
 }
 
+function uniqueById(value, ctx, path) {
+  const seen = new Set();
+  const result = [];
+  for (const item of value) {
+    if (seen.has(item.id)) {
+      invalid(ctx, `${path}: duplicate id ${item.id}`);
+      continue;
+    }
+    seen.add(item.id);
+    result.push(item);
+  }
+  return result;
+}
+
 const NOTE_KEYS = ['id', 'title', 'body', 'createdAt', 'updatedAt'];
 const LINK_KEYS = ['id', 'title', 'url', 'createdAt'];
 const HABIT_KEYS = ['id', 'name', 'icon', 'target', 'createdAt', 'log'];
@@ -647,7 +661,10 @@ export function normalizeState(raw, { strict = false } = {}) {
   result.steps = field(obj, 'steps', (v, c, p) => datedMap(v, COLLECTION_LIMITS.datedMaps, number(0, 100_000_000, true), c, p), {}, ctx, 'state');
   result.study = field(obj, 'study', (v, c, p) => datedMap(v, COLLECTION_LIMITS.datedMaps, number(0, 100_000_000, true), c, p), {}, ctx, 'state');
   result.sport = field(obj, 'sport', (v, c, p) => array(v, COLLECTION_LIMITS.sport, sportEntry, c, p), [], ctx, 'state');
-  result.reminders = field(obj, 'reminders', (v, c, p) => array(v, COLLECTION_LIMITS.reminders, reminder, c, p), [], ctx, 'state');
+  result.reminders = field(obj, 'reminders', (v, c, p) => {
+    const parsed = array(v, COLLECTION_LIMITS.reminders, reminder, c, p);
+    return parsed === BAD ? BAD : uniqueById(parsed, c, p);
+  }, [], ctx, 'state');
   result.pendingAlerts = field(obj, 'pendingAlerts', pendingAlerts, [], ctx, 'state');
   result.notes = field(obj, 'notes', (v, c, p) =>
     workspaceCollection(v, COLLECTION_LIMITS.notes, note, c, p), [], ctx, 'state');

@@ -93,7 +93,7 @@ function streakText(habit) {
             <span>/ {{ wb.state.settings.waterGoal }} ml</span>
           </p>
         </div>
-        <div class="habit-track"><i :style="{ width: `${wb.waterPercent.value}%` }"></i></div>
+        <div class="habit-track"><i :style="{ transform: `scaleX(${wb.waterPercent.value / 100})` }"></i></div>
         <div class="water-buttons">
           <button class="btn btn-soft btn-sm" type="button" @click="wb.addWater(150)">+150 ml</button>
           <button class="btn btn-soft btn-sm" type="button" @click="wb.addWater(250)">+250 ml</button>
@@ -124,7 +124,7 @@ function streakText(habit) {
             <span>/ {{ wb.state.settings.stepGoal }} 步</span>
           </p>
         </div>
-        <div class="habit-track"><i :style="{ width: `${wb.stepsPercent.value}%` }"></i></div>
+        <div class="habit-track"><i :style="{ transform: `scaleX(${wb.stepsPercent.value / 100})` }"></i></div>
         <form class="custom-water" @submit.prevent="saveSteps">
           <input v-model="stepInput" class="input" type="number" min="0" max="200000" step="1" inputmode="numeric" placeholder="今天的累计步数，如 6000" />
           <button class="btn btn-primary btn-sm" type="submit">更新</button>
@@ -177,7 +177,7 @@ function streakText(habit) {
       </form>
 
       <div v-if="!wb.habits.value.length" class="empty">
-        <span class="empty-art" aria-hidden="true">🌱</span>
+        <span class="empty-art" aria-hidden="true"><img :src="asset('assets/icons/leaf.svg')" alt="" /></span>
         <strong>还没有习惯</strong>
         <p>添加一个想坚持的习惯，每天点一下打卡，连续天数会自动累计。</p>
       </div>
@@ -245,14 +245,14 @@ function streakText(habit) {
 .habit-panel { display: flex; flex-direction: column; }
 .habit-main { display: flex; align-items: center; gap: 16px; margin: 8px 0 16px; }
 .habit-value { display: flex; align-items: baseline; gap: 7px; flex-wrap: wrap; }
-.habit-value strong { font-size: 34px; font-weight: 800; letter-spacing: -.03em; }
-.habit-value span { font-size: 13px; color: var(--muted); }
+.habit-value strong { font-size: var(--text-hero); font-weight: 800; letter-spacing: -.03em; }
+.habit-value span { font-size: var(--text-body); color: var(--muted); }
 .habit-track { height: 6px; border-radius: 99px; background: var(--line); overflow: hidden; margin-bottom: 16px; }
-.habit-track i { display: block; height: 100%; border-radius: 99px; background: linear-gradient(90deg, var(--brand), var(--lime)); transition: width var(--motion-slow) var(--ease-out); }
+.habit-track i { display: block; width: 100%; height: 100%; border-radius: 99px; background: linear-gradient(90deg, var(--brand), var(--lime)); transform-origin: left center; transition: transform var(--motion-slow) var(--ease-out); }
 .water-buttons { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 12px; }
 .custom-water { display: flex; gap: 8px; }
 .custom-water .input { flex: 1; min-width: 0; }
-.tiny { margin-top: 10px; font-size: 12.5px; color: var(--muted); line-height: 1.6; }
+.tiny { margin-top: 10px; font-size: var(--text-sm); color: var(--muted); line-height: 1.6; }
 
 .week-days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; }
 .week-day {
@@ -263,8 +263,8 @@ function streakText(habit) {
 .week-day.today { border-color: var(--brand); background: var(--brand-pale); }
 .week-dot { width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--line-strong); background: var(--surface); margin-bottom: 2px; }
 .week-day.done .week-dot { border-color: var(--brand); background: var(--brand); box-shadow: inset 0 0 0 3px var(--surface); }
-.week-day span { font-size: 12px; font-weight: 600; color: var(--ink-soft); }
-.week-day small { font-size: 12px; color: var(--muted); white-space: nowrap; }
+.week-day span { font-size: var(--text-meta); font-weight: 600; color: var(--ink-soft); }
+.week-day small { font-size: var(--text-meta); color: var(--muted); white-space: nowrap; }
 
 /* ---------- 习惯打卡 ---------- */
 .habit-form {
@@ -318,8 +318,8 @@ function streakText(habit) {
 .habit-icon img { width: 17px; height: 17px; opacity: .66; }
 
 .habit-copy { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
-.habit-copy strong { font-size: 13.5px; font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.habit-copy small { font-size: 11.5px; color: var(--muted); }
+.habit-copy strong { font-size: var(--text-body); font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.habit-copy small { font-size: var(--text-2xs); color: var(--muted); }
 
 .habit-week { display: flex; gap: 4px; }
 .habit-day {
@@ -349,6 +349,6 @@ function streakText(habit) {
 
 @media (max-width: 620px) {
   .week-days { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-  .habit-value strong { font-size: 27px; }
+  .habit-value strong { font-size: var(--text-h1); }
 }
 </style>

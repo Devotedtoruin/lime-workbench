@@ -7,6 +7,19 @@ import { DEFAULT_AGENT, loadAgentConfig, saveAgentConfig, validateAgentConfig, i
 
 const wb = useWorkbench();
 
+const settingsSections = [
+  { id: 'settings-identity', label: '形象' },
+  { id: 'settings-appearance', label: '外观' },
+  { id: 'settings-modules', label: '模块' },
+  { id: 'settings-goals', label: '目标' },
+  { id: 'settings-ai', label: 'AI' },
+  { id: 'settings-data', label: '数据' }
+];
+function jumpTo(id) {
+  const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  document.getElementById(id)?.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'start' });
+}
+
 /* ---------------- 形象 ---------------- */
 const identity = reactive({
   workspaceName: wb.state.settings.workspaceName || '',
@@ -171,6 +184,8 @@ const agentEndpoint = computed(() => {
 });
 
 function saveAgent() {
+  const validation = validateAgentConfig({ ...agent });
+  if (!validation.valid) { wb.showToast('配置无效：' + validation.reply); return; }
   if (!saveAgentConfig({ ...agent })) { wb.showToast('保存失败：本机存储不可用'); return; }
   agentStatus.value = isLLMReady(loadAgentConfig()) ? '已配置未验证' : '本地模式（未启用 AI）';
   wb.showToast('AI 配置已保存在本机；未发送请求');
@@ -178,7 +193,10 @@ function saveAgent() {
 function clearAgentKey() {
   const next = { ...loadAgentConfig(), apiKey: '' };
   if (!validateAgentConfig(next).valid) next.provider = 'none';
-  saveAgentConfig(next);
+  if (!saveAgentConfig(next)) {
+    wb.showToast('清除失败：本机存储不可用，Key 仍在');
+    return;
+  }
   Object.assign(agent, loadAgentConfig());
   agentStatus.value = '本地模式（未启用 AI）';
   wb.showToast('已清除保存的 API Key');
@@ -228,8 +246,14 @@ function clearData() {
       </div>
     </header>
 
+    <nav class="settings-nav" aria-label="设置分区">
+      <button v-for="item in settingsSections" :key="item.id" type="button" @click="jumpTo(item.id)">
+        {{ item.label }}
+      </button>
+    </nav>
+
     <!-- 形象 -->
-    <section class="panel glass rim">
+    <section id="settings-identity" class="panel glass rim">
       <div class="panel-head">
         <h2 class="panel-title">工作台与个人形象</h2>
         <span class="badge badge-brand">仅此设备 · 无需注册</span>
@@ -281,7 +305,7 @@ function clearData() {
     </section>
 
     <!-- 主题与外观 -->
-    <section class="panel glass rim">
+    <section id="settings-appearance" class="panel glass rim">
       <div class="panel-head">
         <h2 class="panel-title">主题与外观</h2>
         <span class="badge">即时预览 · 自动保存</span>
@@ -409,7 +433,7 @@ function clearData() {
     </section>
 
     <!-- 首页模块 -->
-    <section class="panel glass rim">
+    <section id="settings-modules" class="panel glass rim">
       <div class="panel-head">
         <h2 class="panel-title">首页内置模块</h2>
         <span class="panel-sub">隐藏不会删除记录</span>
@@ -431,7 +455,7 @@ function clearData() {
     </section>
 
     <!-- 工作与目标 -->
-    <section class="panel glass rim">
+    <section id="settings-goals" class="panel glass rim">
       <div class="panel-head"><h2 class="panel-title">工作与生活目标</h2></div>
       <div class="form-grid">
         <label class="field"><span>上班时间</span><input v-model="work.onTime" class="input" type="time" /></label>
@@ -445,7 +469,7 @@ function clearData() {
     </section>
 
     <!-- AI -->
-    <section class="panel glass rim">
+    <section id="settings-ai" class="panel glass rim">
       <div class="panel-head">
         <h2 class="panel-title">AI 服务连接</h2>
         <span class="badge">{{ agentStatus }}</span>
@@ -493,7 +517,7 @@ function clearData() {
     </section>
 
     <!-- 数据 -->
-    <section class="panel glass rim">
+    <section id="settings-data" class="panel glass rim">
       <div class="panel-head"><h2 class="panel-title">数据与备份</h2></div>
       <p class="tiny">当前数据保存在这个浏览器的本地存储。备份只包含工作台记录，不包含 AI Key 或外观偏好。</p>
       <div class="actions-row">
@@ -511,6 +535,26 @@ function clearData() {
 </template>
 
 <style scoped>
+.settings-nav {
+  position: sticky; top: 84px; z-index: 5;
+  display: flex; align-items: center; gap: 4px; flex-wrap: wrap;
+  padding: 5px; border: 1px solid var(--line); border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+  box-shadow: var(--shadow-sm);
+  width: fit-content;
+}
+.settings-nav button {
+  min-height: 32px; padding: 0 13px; border: 0; border-radius: var(--radius-pill);
+  background: transparent; color: var(--muted); font-size: var(--text-sm); font-weight: 600;
+}
+.settings-nav button:hover { background: var(--surface-soft); color: var(--ink); }
+.settings-nav button:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+section[id^="settings-"] { scroll-margin-top: 140px; }
+@media (max-width: 640px) {
+  .settings-nav { top: 76px; width: 100%; overflow-x: auto; flex-wrap: nowrap; scrollbar-width: none; }`n  section[id^="settings-"] { scroll-margin-top: 124px; }
+  .settings-nav::-webkit-scrollbar { display: none; }
+  .settings-nav button { flex: 0 0 auto; }
+}
 .identity-row { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; margin-bottom: 16px; }
 .identity-avatar {
   width: 76px; height: 76px; flex: 0 0 76px; border-radius: 22px; overflow: hidden;
@@ -523,23 +567,23 @@ function clearData() {
 .identity-avatar img { width: 100%; height: 100%; object-fit: cover; }
 .identity-avatar-placeholder { width: 32px !important; height: 32px !important; object-fit: contain; opacity: .5; }
 .identity-copy { display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1; }
-.identity-copy strong { font-size: 18px; font-weight: 750; letter-spacing: -.015em; }
-.identity-copy small { font-size: 12px; color: var(--muted); }
+.identity-copy strong { font-size: var(--text-lg); font-weight: 750; letter-spacing: -.015em; }
+.identity-copy small { font-size: var(--text-meta); color: var(--muted); }
 .identity-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
 .file-btn { cursor: pointer; }
 .identity-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 /* Form fields stop widening past a readable measure: at 1878px three columns gave each input
    ~600px, so a short value sat in a very long box and the label was far from its end. */
 .form-grid { max-width: 1180px; }
-.tiny { font-size: 12.5px; color: var(--muted); line-height: 1.7; }
+.tiny { font-size: var(--text-sm); color: var(--muted); line-height: 1.7; }
 .actions-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
 
-.group-label { font-size: 12px; font-weight: 700; color: var(--ink-soft); margin: 18px 0 9px; }
+.group-label { font-size: var(--text-meta); font-weight: 700; color: var(--ink-soft); margin: 18px 0 9px; }
 .preset-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
 .preset-btn {
   display: flex; align-items: center; gap: 9px;
   min-height: 56px; padding: 8px; border: 1px solid var(--line-strong);
-  border-radius: 12px; background: var(--surface); color: var(--ink-soft); font-size: 12.5px;
+  border-radius: 12px; background: var(--surface); color: var(--ink-soft); font-size: var(--text-sm);
   transition: border-color var(--motion-fast), box-shadow var(--motion-fast), transform var(--motion-fast);
 }
 .preset-btn:hover { border-color: var(--line-strong); }
@@ -550,7 +594,7 @@ function clearData() {
 .theme-btn {
   display: inline-flex; align-items: center; gap: 7px;
   min-height: 38px; padding: 0 14px; border: 1px solid var(--line); border-radius: var(--radius-control);
-  background: var(--surface); color: var(--ink-soft); font-size: 12.5px;
+  background: var(--surface); color: var(--ink-soft); font-size: var(--text-sm);
 }
 .theme-btn img { width: 16px; height: 16px; opacity: .68; }
 .theme-btn.is-active { border-color: var(--brand); background: var(--brand-pale); color: var(--brand-deep); font-weight: 650; }
@@ -565,11 +609,11 @@ function clearData() {
 }
 .accent-dot:hover { transform: scale(1.12); }
 .accent-dot.is-active { border-color: var(--dot); box-shadow: inset 0 0 0 2px var(--surface), 0 0 0 3px color-mix(in srgb, var(--dot) 26%, transparent); }
-.accent-name { font-size: 12px; color: var(--muted); }
+.accent-name { font-size: var(--text-meta); color: var(--muted); }
 
 .slider-row { display: flex; align-items: center; gap: 12px; }
 .slider-value {
-  min-width: 52px; text-align: right; font-size: 12.5px; font-weight: 650;
+  min-width: 52px; text-align: right; font-size: var(--text-sm); font-weight: 650;
   color: var(--ink-soft); font-variant-numeric: tabular-nums;
 }
 .range {
@@ -604,7 +648,7 @@ function clearData() {
 .wallpaper-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 
 .widget-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; }
-.widget-item { display: flex; align-items: center; gap: 9px; padding: 9px 11px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-soft); font-size: 12.5px; cursor: pointer; }
+.widget-item { display: flex; align-items: center; gap: 9px; padding: 9px 11px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-soft); font-size: var(--text-sm); cursor: pointer; }
 
 .agent-test { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); }
 .test-row { display: flex; gap: 8px; margin: 8px 0; }

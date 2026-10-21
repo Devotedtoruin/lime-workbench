@@ -170,20 +170,20 @@ function catName(c) { return (c || '').slice(2).trim() || '未分类'; }
 .overview { display: flex; align-items: center; justify-content: space-between; gap: 28px; flex-wrap: wrap; }
 .overview-nums { flex: 0 0 auto; }
 .overview-chart { flex: 1 1 320px; min-width: 240px; }
-.chart-caption { display: block; margin-bottom: 4px; font-size: 11.5px; color: var(--muted); }
+.chart-caption { display: block; margin-bottom: 4px; font-size: var(--text-2xs); color: var(--muted); }
 /* Bars should fill the card's remaining width instead of sitting in a small cluster. */
 .bars { display: flex; align-items: flex-end; gap: 8px; width: 100%; min-height: 62px; }
-.overview-nums small { font-size: 12px; color: var(--muted); }
+.overview-nums small { font-size: var(--text-meta); color: var(--muted); }
 .overview-nums strong { display: block; margin: 6px 0 4px; font-size: 32px; font-weight: 800; letter-spacing: -.03em; }
-.overview-nums span { font-size: 12.5px; color: var(--muted); }
+.overview-nums span { font-size: var(--text-sm); color: var(--muted); }
 .overview-nums b { color: var(--ink-soft); font-weight: 650; }
 .overview-chart { flex: 1 1 240px; min-width: 200px; }
-.chart-empty { display: grid; place-items: center; min-height: 70px; font-size: 12px; color: var(--muted); border: 1px dashed var(--line); border-radius: 10px; }
+.chart-empty { display: grid; place-items: center; min-height: 70px; font-size: var(--text-meta); color: var(--muted); border: 1px dashed var(--line); border-radius: 10px; }
 .bars { display: flex; align-items: flex-end; gap: 10px; height: 74px; }
 .bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 5px; height: 100%; }
 .bar-col i { display: block; width: 100%; max-width: 22px; border-radius: 5px 5px 2px 2px; background: color-mix(in srgb, var(--brand) 55%, transparent); }
 .bar-col.is-today i { background: var(--brand); }
-.bar-col span { font-size: 12px; color: var(--muted); }
+.bar-col span { font-size: var(--text-meta); color: var(--muted); }
 
 .entry-panel { display: flex; flex-direction: column; gap: 14px; }
 .entry-form { display: grid; grid-template-columns: minmax(110px, .8fr) minmax(0, 1.2fr); gap: 10px; align-items: end; }
@@ -196,7 +196,7 @@ function catName(c) { return (c || '').slice(2).trim() || '未分类'; }
 .cat-chip {
   display: inline-flex; align-items: center; gap: 5px;
   min-height: 32px; padding: 0 10px; border-radius: var(--radius-pill);
-  border: 1px solid var(--line); background: var(--surface); color: var(--ink-soft); font-size: 12px;
+  border: 1px solid var(--line); background: var(--surface); color: var(--ink-soft); font-size: var(--text-meta);
   transition: border-color var(--motion-fast), background-color var(--motion-fast), color var(--motion-fast);
 }
 .cat-chip img { width: 13px; height: 13px; opacity: .7; }
@@ -204,7 +204,7 @@ function catName(c) { return (c || '').slice(2).trim() || '未分类'; }
 .cat-chip.is-active img { opacity: 1; }
 
 .list-head { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; margin-top: 4px; }
-.list-head h2 { font-size: 16px; font-weight: 700; }
+.list-head h2 { font-size: var(--text-md); font-weight: 700; }
 .ledger-list-panel { padding: 0; }
 .ledger-list { list-style: none; margin: 0; padding: 4px 20px; }
 .ledger-list li { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); }
@@ -212,8 +212,8 @@ function catName(c) { return (c || '').slice(2).trim() || '未分类'; }
 .ledger-cat { width: 34px; height: 34px; flex: 0 0 34px; display: grid; place-items: center; border-radius: 10px; background: var(--surface-soft); border: 1px solid var(--line); }
 .ledger-cat img { width: 16px; height: 16px; opacity: .7; }
 .ledger-copy { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.ledger-copy strong { font-size: 13.5px; font-weight: 600; overflow-wrap: anywhere; }
-.ledger-copy small { font-size: 12px; color: var(--muted); }
+.ledger-copy strong { font-size: var(--text-body); font-weight: 600; overflow-wrap: anywhere; }
+.ledger-copy small { font-size: var(--text-meta); color: var(--muted); }
 .ledger-amount { font-size: 14.5px; font-weight: 700; white-space: nowrap; }
 .ledger-amount.income { color: var(--brand-deep); }
 .ledger-amount.expense { color: var(--ink); }

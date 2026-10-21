@@ -112,13 +112,13 @@ function submit() {
 }
 .amount-row:focus-within { border-color: var(--brand); box-shadow: var(--ring); }
 .amount-row b { font-size: 20px; color: var(--muted); font-weight: 600; }
-.amount-input { flex: 1; min-width: 0; border: 0; background: transparent; outline: none; font-size: 26px; font-weight: 700; letter-spacing: -.02em; }
+.amount-input { flex: 1; min-width: 0; border: 0; background: transparent; outline: none; font-size: var(--text-h1); font-weight: 700; letter-spacing: -.02em; }
 .cat-grid { display: flex; flex-wrap: wrap; gap: 7px; }
 .cat-chip {
   display: inline-flex; align-items: center; gap: 6px;
   min-height: 34px; padding: 0 11px; border-radius: var(--radius-pill);
   border: 1px solid var(--line); background: var(--surface);
-  color: var(--ink-soft); font-size: 12.5px;
+  color: var(--ink-soft); font-size: var(--text-sm);
   transition: border-color var(--motion-fast), background-color var(--motion-fast), color var(--motion-fast);
 }
 .cat-chip img { width: 14px; height: 14px; opacity: .7; }

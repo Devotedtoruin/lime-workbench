@@ -4,7 +4,8 @@ import { ref, watch, onBeforeUnmount } from 'vue';
 //
 // Counts from the previous value to the new one instead of snapping, so a water top-up or a
 // finished focus session visibly lands. Behaviour we care about:
-//   - first render starts at 0 so the page has a settling moment, but only once;
+//   - first render shows the real value immediately; replaying 0 → target on every route
+//     return made the KPI look reset;
 //   - rapid updates retarget the running animation rather than queuing, so +250 spammed five
 //     times still ends on the right number after one smooth pass;
 //   - reduced-motion jumps straight to the value: the number is information, not decoration.
@@ -18,6 +19,7 @@ export function useAnimatedNumber(source, { duration = 520 } = {}) {
   let from = 0;
   let to = 0;
   let start = 0;
+  let initialized = false;
 
   function step(now) {
     const elapsed = now - start;
@@ -40,7 +42,16 @@ export function useAnimatedNumber(source, { duration = 520 } = {}) {
     frame = requestAnimationFrame(step);
   }
 
-  watch(source, run, { immediate: true });
+  watch(source, next => {
+    const target = Number(next) || 0;
+    if (!initialized) {
+      // First mount: the number is information, not an entrance animation.
+      initialized = true;
+      display.value = target;
+      return;
+    }
+    run(target);
+  }, { immediate: true });
   onBeforeUnmount(() => cancelAnimationFrame(frame));
 
   return display;
