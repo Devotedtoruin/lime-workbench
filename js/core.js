@@ -5,10 +5,16 @@ export const DEFAULT_SETTINGS = {
   workHours: 8,
   onTime: '09:00',
   offTime: '18:00',
+  breakStart: '12:00',
+  breakEnd: '13:00',
   payDay: 15,
   waterGoal: 2000,
   stepGoal: 6000,
   restDays: [0, 6], // 周六周日休息
+  // 排班与固定记账模板（数组在 state 层深拷贝，避免共享默认值）
+  workTemplates: [],
+  workSchedule: [],
+  ledgerTemplates: [],
   // 个性化：displayName 为空时界面用「你」；avatar 是 emoji，
   // avatarImage/logoImage 保留静态缩略图；AssetId 仅引用本机 IndexedDB 素材。
   displayName: '',

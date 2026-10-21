@@ -2,9 +2,9 @@
 import { DEFAULT_SETTINGS } from './core.js';
 import { HABIT_LIMITS } from './habits.js';
 
-export const CURRENT_STATE_VERSION = 4;
+export const CURRENT_STATE_VERSION = 5;
 export const STATE_VERSION = CURRENT_STATE_VERSION;
-export const SUPPORTED_STATE_VERSIONS = Object.freeze([1, 2, 3, 4]);
+export const SUPPORTED_STATE_VERSIONS = Object.freeze([1, 2, 3, 4, 5]);
 export const MAX_BACKUP_CHARS = 2_000_000;
 
 // The same bounds apply to live input and backup validation (lengths are UTF-16 code units).
@@ -17,7 +17,7 @@ export const TEXT_LIMITS = Object.freeze({
 export const COLLECTION_LIMITS = Object.freeze({
   todos: 2_000, ledger: 5_000, sport: 2_000, reminders: 500, pendingAlerts: 501,
   datedMaps: 3660, waterPerDay: 200, waterTotal: 10_000, ledgerCats: 60,
-  notes: 100, links: 100, habits: 20
+  notes: 100, links: 100, habits: 20, workTemplates: 20, workSchedule: 366, ledgerTemplates: 30
 });
 
 const BAD = Symbol('invalid state value');
@@ -37,7 +37,13 @@ const MAX_TIMESTAMP = Date.UTC(2101, 0, 1);
 export function defaultState() {
   return {
     version: STATE_VERSION,
-    settings: { ...DEFAULT_SETTINGS, restDays: [...DEFAULT_SETTINGS.restDays] },
+    settings: {
+      ...DEFAULT_SETTINGS,
+      restDays: [...DEFAULT_SETTINGS.restDays],
+      workTemplates: [],
+      workSchedule: [],
+      ledgerTemplates: []
+    },
     todos: [], ledger: [], water: {}, steps: {}, study: {}, sport: [], reminders: [], pendingAlerts: [],
     notes: [], links: [], habits: [],
     notifOn: false, soundOn: true, earnedTotal: 0,
@@ -188,15 +194,70 @@ function restDays(value, ctx, path) {
   return [...value];
 }
 
+const WORK_TEMPLATE_KEYS = ['id', 'name', 'onTime', 'offTime', 'breakStart', 'breakEnd'];
+function workTemplate(value, ctx, path) {
+  const obj = record(value, WORK_TEMPLATE_KEYS, ctx, path);
+  if (obj === BAD) return BAD;
+  const id = required(obj, 'id', taskId, ctx, path);
+  const name = required(obj, 'name', text(TEXT_LIMITS.taskTag), ctx, path);
+  const onTime = required(obj, 'onTime', pattern(TIME_RE), ctx, path);
+  const offTime = required(obj, 'offTime', pattern(TIME_RE), ctx, path);
+  const breakStart = required(obj, 'breakStart', pattern(TIME_RE), ctx, path);
+  const breakEnd = required(obj, 'breakEnd', pattern(TIME_RE), ctx, path);
+  if ([id, name, onTime, offTime, breakStart, breakEnd].includes(BAD)) return BAD;
+  if (offTime <= onTime || breakEnd <= breakStart || breakStart < onTime || breakEnd > offTime) return invalid(ctx, path);
+  return { id, name, onTime, offTime, breakStart, breakEnd };
+}
+
+const WORK_SCHEDULE_KEYS = ['id', 'date', 'onTime', 'offTime', 'breakStart', 'breakEnd'];
+function workScheduleEntry(value, ctx, path) {
+  const obj = record(value, WORK_SCHEDULE_KEYS, ctx, path);
+  if (obj === BAD) return BAD;
+  const id = required(obj, 'id', taskId, ctx, path);
+  const date = required(obj, 'date', dateKey, ctx, path);
+  const onTime = required(obj, 'onTime', pattern(TIME_RE), ctx, path);
+  const offTime = required(obj, 'offTime', pattern(TIME_RE), ctx, path);
+  const breakStart = required(obj, 'breakStart', pattern(TIME_RE), ctx, path);
+  const breakEnd = required(obj, 'breakEnd', pattern(TIME_RE), ctx, path);
+  if ([id, date, onTime, offTime, breakStart, breakEnd].includes(BAD)) return BAD;
+  if (offTime <= onTime || breakEnd <= breakStart || breakStart < onTime || breakEnd > offTime) return invalid(ctx, path);
+  return { id, date, onTime, offTime, breakStart, breakEnd };
+}
+
+const LEDGER_TEMPLATE_KEYS = ['id', 'name', 'type', 'amount', 'cat', 'note', 'frequency', 'dayOfMonth', 'enabled'];
+function ledgerTemplate(value, ctx, path) {
+  const obj = record(value, LEDGER_TEMPLATE_KEYS, ctx, path);
+  if (obj === BAD) return BAD;
+  const id = required(obj, 'id', taskId, ctx, path);
+  const name = required(obj, 'name', text(TEXT_LIMITS.taskTag), ctx, path);
+  const type = required(obj, 'type', choice(['income', 'expense']), ctx, path);
+  const amount = required(obj, 'amount', number(0.01, 1_000_000), ctx, path);
+  const cat = required(obj, 'cat', text(TEXT_LIMITS.ledgerCategory, true), ctx, path);
+  const note = required(obj, 'note', text(TEXT_LIMITS.ledgerNote, true), ctx, path);
+  const frequency = required(obj, 'frequency', choice(['daily', 'weekday', 'monthly', 'manual']), ctx, path);
+  const dayOfMonth = required(obj, 'dayOfMonth', number(1, 31, true), ctx, path);
+  const enabled = required(obj, 'enabled', bool, ctx, path);
+  if ([id, name, type, amount, cat, note, frequency, dayOfMonth, enabled].includes(BAD)) return BAD;
+  return { id, name, type, amount, cat, note, frequency, dayOfMonth, enabled };
+}
+
 function settings(value, ctx, path) {
   const keys = [...Object.keys(DEFAULT_SETTINGS), 'place', 'coord', 'displayName', 'focusMinutes',
     'avatar', 'avatarImage', 'weatherAt', 'ledgerCats'];
   const obj = record(value, keys, ctx, path);
   if (obj === BAD) return BAD;
-  const result = { ...DEFAULT_SETTINGS, restDays: [...DEFAULT_SETTINGS.restDays] };
+  const result = {
+    ...DEFAULT_SETTINGS,
+    restDays: [...DEFAULT_SETTINGS.restDays],
+    workTemplates: [],
+    workSchedule: [],
+    ledgerTemplates: []
+  };
   const fields = {
     salary: number(0, 10_000_000), workHours: number(0.5, 24),
-    onTime: pattern(TIME_RE), offTime: pattern(TIME_RE), payDay: number(1, 31, true),
+    onTime: pattern(TIME_RE), offTime: pattern(TIME_RE),
+    breakStart: pattern(TIME_RE), breakEnd: pattern(TIME_RE),
+    payDay: number(1, 31, true),
     workspaceName: (v, c, p) => validateWorkspaceTitle(v, TEXT_LIMITS.workspaceName, { allowEmpty: true }) ? v : invalid(c, p),
     logoMode: choice(['default', 'custom', 'avatar']),
     logoImage: (v, c, p) => v === '' || typeof v === 'string' && /^data:image\/(?:png|jpeg|webp);base64,/.test(v)
@@ -205,7 +266,10 @@ function settings(value, ctx, path) {
     // Validate syntax only; missing assets must not discard the static poster or other data.
     avatarAssetId: (v, c, p) => v === '' ? '' : pattern(LOCAL_ASSET_ID_RE)(v, c, p),
     logoAssetId: (v, c, p) => v === '' ? '' : pattern(LOCAL_ASSET_ID_RE)(v, c, p),
-    waterGoal: number(1, 100_000), stepGoal: number(1, 1_000_000), restDays
+    waterGoal: number(1, 100_000), stepGoal: number(1, 1_000_000), restDays,
+    workTemplates: (v, c, p) => array(v, COLLECTION_LIMITS.workTemplates, workTemplate, c, p),
+    workSchedule: (v, c, p) => array(v, COLLECTION_LIMITS.workSchedule, workScheduleEntry, c, p),
+    ledgerTemplates: (v, c, p) => array(v, COLLECTION_LIMITS.ledgerTemplates, ledgerTemplate, c, p)
   };
   for (const [key, parser] of Object.entries(fields)) {
     result[key] = field(obj, key, parser, result[key], ctx, path);
@@ -640,7 +704,7 @@ function focus(value, ctx, path) {
 /**
  * Normalize an already-parsed state. Default: repair stored data by dropping malformed entries
  * and replacing invalid fields with defaults. { strict: true } rejects on the first invalid field.
- * Both modes migrate unversioned/version-1/version-2/version-3 flat states to the current version-4 shape.
+ * Both modes migrate unversioned/version-1/version-2/version-3/version-4 states to the current version-5 shape.
  */
 export function normalizeState(raw, { strict = false } = {}) {
   const ctx = { strict };

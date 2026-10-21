@@ -97,7 +97,7 @@ function searchCity() {
   padding: 10px 14px; border: 1px solid var(--coral); border-radius: var(--radius-control);
   background: var(--coral-pale); color: var(--ink); font-size: var(--text-body);
 }
-.privacy { display: inline-flex; align-items: center; gap: 7px; font-size: var(--text-meta); color: var(--muted); }
+.privacy { display: inline-flex; align-items: center; gap: 7px; padding-right: 4px; font-size: var(--text-meta); color: var(--muted); }
 .privacy img { width: 16px; height: 16px; opacity: .6; }
 .weather-hero { display: flex; flex-direction: column; gap: 18px; }
 .weather-main { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }

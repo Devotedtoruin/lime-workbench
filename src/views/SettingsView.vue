@@ -136,20 +136,67 @@ function removeBackground() {
 const work = reactive({
   onTime: wb.state.settings.onTime || '09:00',
   offTime: wb.state.settings.offTime || '18:00',
+  breakStart: wb.state.settings.breakStart || '12:00',
+  breakEnd: wb.state.settings.breakEnd || '13:00',
   waterGoal: wb.state.settings.waterGoal || 2000,
   stepGoal: wb.state.settings.stepGoal || 6000
 });
 function saveWork() {
   const on = work.onTime, off = work.offTime;
+  const breakStart = work.breakStart, breakEnd = work.breakEnd;
   if (!/^\d{2}:\d{2}$/.test(on) || !/^\d{2}:\d{2}$/.test(off) || off <= on) {
     wb.showToast('下班时间需晚于上班时间（暂只支持同日班次）');
+    return;
+  }
+  if (!/^\d{2}:\d{2}$/.test(breakStart) || !/^\d{2}:\d{2}$/.test(breakEnd) ||
+      breakEnd <= breakStart || breakStart < on || breakEnd > off) {
+    wb.showToast('午休时间需在班次内，且结束晚于开始');
     return;
   }
   const water = Number(work.waterGoal), steps = Number(work.stepGoal);
   if (!Number.isInteger(water) || water < 250 || water > 10000) { wb.showToast('饮水目标需为 250–10000 ml'); return; }
   if (!Number.isInteger(steps) || steps < 500 || steps > 50000) { wb.showToast('步数目标需为 500–50000'); return; }
-  Object.assign(wb.state.settings, { onTime: on, offTime: off, waterGoal: water, stepGoal: steps });
+  Object.assign(wb.state.settings, { onTime: on, offTime: off, breakStart, breakEnd, waterGoal: water, stepGoal: steps });
   if (wb.save()) wb.showToast('工作与目标设置已保存');
+}
+
+/* ---------------- 排班模板 ---------------- */
+function dateOffset(days) {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+const shiftDate = ref(dateOffset(1));
+const shift = reactive({
+  name: '',
+  onTime: wb.state.settings.onTime || '09:00',
+  offTime: wb.state.settings.offTime || '18:00',
+  breakStart: wb.state.settings.breakStart || '12:00',
+  breakEnd: wb.state.settings.breakEnd || '13:00'
+});
+const upcomingSchedule = computed(() =>
+  [...(wb.state.settings.workSchedule || [])]
+    .filter(item => item.date >= wb.todayStr.value)
+    .sort((a, b) => a.date.localeCompare(b.date)).slice(0, 8)
+);
+function dateLabel(key) {
+  const [, month, day] = String(key).split('-');
+  return `${Number(month)} 月 ${Number(day)} 日`;
+}
+function saveShiftTemplate() {
+  if (wb.addWorkTemplate({ ...shift })) shift.name = '';
+}
+function applyShift(template, date = shiftDate.value) {
+  wb.applyWorkSchedule({
+    date,
+    onTime: template.onTime,
+    offTime: template.offTime,
+    breakStart: template.breakStart,
+    breakEnd: template.breakEnd
+  });
+}
+function applyTomorrow(template) {
+  applyShift(template, dateOffset(1));
 }
 
 /* ---------------- AI 连接 ---------------- */
@@ -418,13 +465,63 @@ function clearData() {
     <section id="settings-goals" class="panel glass rim">
       <div class="panel-head"><h2 class="panel-title">工作与生活目标</h2></div>
       <div class="form-grid">
-        <label class="field"><span>上班时间</span><input v-model="work.onTime" class="input" type="time" /></label>
-        <label class="field"><span>下班时间</span><input v-model="work.offTime" class="input" type="time" /></label>
+        <label class="field"><span>默认上班时间</span><input v-model="work.onTime" class="input" type="time" /></label>
+        <label class="field"><span>默认下班时间</span><input v-model="work.offTime" class="input" type="time" /></label>
+        <label class="field"><span>午休开始</span><input v-model="work.breakStart" class="input" type="time" /></label>
+        <label class="field"><span>午休结束</span><input v-model="work.breakEnd" class="input" type="time" /></label>
         <label class="field"><span>饮水目标（ml）</span><input v-model.number="work.waterGoal" class="input" type="number" min="250" max="10000" step="1" inputmode="numeric" /></label>
         <label class="field"><span>步数目标</span><input v-model.number="work.stepGoal" class="input" type="number" min="500" max="50000" step="1" inputmode="numeric" /></label>
       </div>
       <div class="actions-row">
-        <button class="btn btn-primary" type="button" @click="saveWork">保存工作与目标</button>
+        <button class="btn btn-primary" type="button" @click="saveWork">保存默认班次与目标</button>
+      </div>
+
+      <div class="shift-section">
+        <div class="shift-head">
+          <div>
+            <h3>排班模板</h3>
+            <p>适合轮班：保存早班 / 晚班 / 半天，点一下应用到明天或指定日期。</p>
+          </div>
+          <label class="field shift-date">
+            <span>应用到日期</span>
+            <input v-model="shiftDate" class="input" type="date" :min="wb.todayStr.value" />
+          </label>
+        </div>
+
+        <div v-if="wb.state.settings.workTemplates.length" class="shift-list">
+          <article v-for="t in wb.state.settings.workTemplates" :key="t.id" class="shift-row">
+            <div class="shift-copy">
+              <strong>{{ t.name }}</strong>
+              <small>{{ t.onTime }}–{{ t.offTime }} · 午休 {{ t.breakStart }}–{{ t.breakEnd }}</small>
+            </div>
+            <div class="shift-actions">
+              <button class="btn btn-soft btn-sm" type="button" @click="applyTomorrow(t)">明天</button>
+              <button class="btn btn-soft btn-sm" type="button" @click="applyShift(t)">所选日期</button>
+              <button class="btn-icon is-danger" type="button" aria-label="删除班次模板" @click="wb.deleteWorkTemplate(t.id)">
+                <img :src="asset('assets/icons/trash.svg')" alt="" />
+              </button>
+            </div>
+          </article>
+        </div>
+        <p v-else class="shift-empty">还没有模板。把常用班次存下来，下次一键排班。</p>
+
+        <form class="shift-form" @submit.prevent="saveShiftTemplate">
+          <label class="field"><span>模板名称</span><input v-model="shift.name" class="input" maxlength="80" placeholder="早班 / 晚班 / 半天" /></label>
+          <label class="field"><span>上班</span><input v-model="shift.onTime" class="input" type="time" /></label>
+          <label class="field"><span>下班</span><input v-model="shift.offTime" class="input" type="time" /></label>
+          <label class="field"><span>午休开始</span><input v-model="shift.breakStart" class="input" type="time" /></label>
+          <label class="field"><span>午休结束</span><input v-model="shift.breakEnd" class="input" type="time" /></label>
+          <button class="btn btn-soft" type="submit">保存为模板</button>
+        </form>
+
+        <div v-if="upcomingSchedule.length" class="shift-upcoming">
+          <p class="shift-subtitle">已排班</p>
+          <div v-for="entry in upcomingSchedule" :key="entry.date" class="shift-upcoming-row">
+            <strong>{{ dateLabel(entry.date) }}</strong>
+            <span>{{ entry.onTime }}–{{ entry.offTime }} · 午休 {{ entry.breakStart }}–{{ entry.breakEnd }}</span>
+            <button class="btn btn-text btn-sm" type="button" @click="wb.removeWorkSchedule(entry.date)">移除</button>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -608,8 +705,26 @@ section[id^="settings-"] { scroll-margin-top: 140px; }
 .wallpaper-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--line); }
 .wallpaper-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 
-.widget-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; }
-.widget-item { display: flex; align-items: center; gap: 9px; padding: 9px 11px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-soft); font-size: var(--text-sm); cursor: pointer; }
+.shift-section { display: grid; gap: 14px; margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--line); }
+.shift-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.shift-head h3 { margin: 0 0 4px; font-size: var(--text-md); font-weight: 700; }
+.shift-head p { margin: 0; max-width: 54ch; color: var(--muted); font-size: var(--text-sm); line-height: 1.6; }
+.shift-date { min-width: 168px; }
+.shift-list { display: grid; gap: 8px; }
+.shift-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 11px 13px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-soft); }
+.shift-copy { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.shift-copy strong { font-size: var(--text-body); font-weight: 650; }
+.shift-copy small { font-size: var(--text-meta); color: var(--muted); }
+.shift-actions { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+.shift-empty { margin: 0; color: var(--muted); font-size: var(--text-sm); }
+.shift-form { display: grid; grid-template-columns: 1.25fr repeat(4, minmax(0, 1fr)) auto; gap: 8px; align-items: end; padding: 14px; border: 1px dashed var(--line-strong); border-radius: 14px; }
+.shift-form .btn { align-self: end; }
+.shift-upcoming { display: grid; gap: 5px; padding-top: 6px; }
+.shift-subtitle { margin: 0 0 2px; font-size: var(--text-meta); font-weight: 650; color: var(--muted); }
+.shift-upcoming-row { display: flex; align-items: center; gap: 12px; padding: 7px 0; border-bottom: 1px solid var(--line); font-size: var(--text-sm); }
+.shift-upcoming-row:last-child { border-bottom: 0; }
+.shift-upcoming-row strong { min-width: 76px; font-weight: 650; color: var(--ink-soft); }
+.shift-upcoming-row span { flex: 1; color: var(--muted); }
 
 .agent-test { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); }
 .test-row { display: flex; gap: 8px; margin: 8px 0; }
@@ -617,12 +732,14 @@ section[id^="settings-"] { scroll-margin-top: 140px; }
 
 @media (max-width: 1000px) {
   .identity-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .widget-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .shift-form { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 @media (max-width: 640px) {
+  .shift-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .shift-row { align-items: flex-start; flex-direction: column; }
+  .shift-date { width: 100%; }
   .preset-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .identity-grid { grid-template-columns: minmax(0, 1fr); }
-  .widget-grid { grid-template-columns: minmax(0, 1fr); }
   .test-row { flex-direction: column; }
 }
 </style>

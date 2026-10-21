@@ -304,17 +304,25 @@ export function useWorkbench() {
   const studyTodayMinutes = computed(() => Math.floor((state.study[todayStr.value] || 0) / 60));
   const studyPercent = computed(() => Math.min(100, Math.round(((state.study[todayStr.value] || 0) / 3600) * 100)));
 
+  const todaySchedule = computed(() => {
+    const override = (state.settings.workSchedule || []).find(item => item.date === todayStr.value);
+    return override
+      ? { ...state.settings, ...override, scheduleOverride: true }
+      : { ...state.settings, scheduleOverride: false };
+  });
+
   const offWorkStatus = computed(() => {
-    const s = state.settings;
+    const s = todaySchedule.value;
     const now = nowDate.value;
-    const isRest = s.restDays.includes(now.getDay());
+    const isRest = !s.scheduleOverride && s.restDays.includes(now.getDay());
     const { done, hours, minutes, seconds } = offCountdown(s, now);
     const beforeWork = !isRest && now < timeOnDate(s.onTime, now);
+    const breakText = s.breakStart && s.breakEnd ? ` · 午休 ${s.breakStart}–${s.breakEnd}` : '';
     if (isRest) {
-      return { kicker: '今天休息', value: '周末愉快', sub: `工作日 ${s.onTime}–${s.offTime}`, quiet: true };
+      return { kicker: '今天休息', value: '周末愉快', sub: `默认班次 ${s.onTime}–${s.offTime}`, quiet: true };
     }
     if (beforeWork) {
-      return { kicker: '待上班', value: `${s.onTime} 上班`, sub: `今日工作时段 ${s.onTime}–${s.offTime}`, quiet: true };
+      return { kicker: '待上班', value: `${s.onTime} 上班`, sub: `今日工作时段 ${s.onTime}–${s.offTime}${breakText}`, quiet: true };
     }
     if (done) {
       return { kicker: '已经下班', value: '下班啦', sub: `今日在岗 ${workedMinutes(s, now)} 分钟`, quiet: true };
@@ -323,7 +331,7 @@ export function useWorkbench() {
     return {
       kicker: '距离下班',
       value: clock,
-      sub: `${s.onTime}–${s.offTime} · 已在岗 ${workedMinutes(s, now)} 分钟`,
+      sub: `${s.onTime}–${s.offTime}${breakText} · 已在岗 ${workedMinutes(s, now)} 分钟`,
       quiet: false
     };
   });
@@ -560,7 +568,7 @@ export function useWorkbench() {
   }
 
   // 账本操作
-  function addLedgerRecord({ type = 'expense', amount, note = '', cat = CATEGORIES[0] }) {
+  function addLedgerRecord({ type = 'expense', amount, note = '', cat = CATEGORIES[0], date = todayKey() }) {
     if (state.ledger.length >= COLLECTION_LIMITS.ledger) {
       showToast(`账目最多保存 ${COLLECTION_LIMITS.ledger} 条，请先导出并清理`);
       return false;
@@ -575,20 +583,142 @@ export function useWorkbench() {
       showToast('备注内容无效');
       return false;
     }
+    const when = /^\d{4}-\d{2}-\d{2}$/.test(String(date)) ? date : todayKey();
     state.ledger.unshift({
       id: nextId(),
       type: type === 'income' ? 'income' : 'expense',
       amount: amt,
       note: cleanNote,
       cat: cat || CATEGORIES[0],
-      date: todayKey()
+      date: when
     });
     if (!save()) return false;
     return true;
   }
 
-  function deleteLedgerRecord(id) {
-    const idx = state.ledger.findIndex(r => r.id === id);
+  /* ---------------- 排班与固定记账模板 ---------------- */
+  function addWorkTemplate({ name, onTime, offTime, breakStart, breakEnd }) {
+    const clean = String(name || '').trim();
+    const timeOk = value => /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(String(value));
+    if (!clean || !validateText(clean, TEXT_LIMITS.taskTag)) { showToast('模板名称无效'); return false; }
+    if (![onTime, offTime, breakStart, breakEnd].every(timeOk)) { showToast('班次时间格式无效'); return false; }
+    if ((state.settings.workTemplates || []).length >= COLLECTION_LIMITS.workTemplates) {
+      showToast('班次模板最多保存 20 个'); return false;
+    }
+    state.settings.workTemplates.unshift({
+      id: nextId(), name: clean, onTime, offTime, breakStart, breakEnd
+    });
+    if (!save()) return false;
+    showToast('班次模板已保存');
+    return true;
+  }
+
+  function deleteWorkTemplate(id) {
+    const list = state.settings.workTemplates || [];
+    const idx = list.findIndex(item => String(item.id) === String(id));
+    if (idx < 0) return;
+    list.splice(idx, 1);
+    save();
+  }
+
+  function applyWorkSchedule({ date, onTime, offTime, breakStart, breakEnd }) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(date))) { showToast('请选择有效日期'); return false; }
+    const timeOk = value => /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(String(value));
+    if (![onTime, offTime, breakStart, breakEnd].every(timeOk)) { showToast('班次时间格式无效'); return false; }
+    if (offTime <= onTime) { showToast('下班时间需晚于上班时间'); return false; }
+    const list = state.settings.workSchedule || [];
+    const idx = list.findIndex(item => item.date === date);
+    const entry = { id: idx >= 0 ? list[idx].id : nextId(), date, onTime, offTime, breakStart, breakEnd };
+    if (idx >= 0) list.splice(idx, 1, entry);
+    else {
+      if (list.length >= COLLECTION_LIMITS.workSchedule) { showToast('排班记录已达上限'); return false; }
+      list.push(entry);
+    }
+    if (!save()) return false;
+    showToast(`${date} 的班次已设定`);
+    return true;
+  }
+
+  function removeWorkSchedule(date) {
+    const list = state.settings.workSchedule || [];
+    const idx = list.findIndex(item => item.date === date);
+    if (idx < 0) return;
+    list.splice(idx, 1);
+    save();
+  }
+
+  function addLedgerTemplate({ name, type = 'expense', amount, cat = CATEGORIES[0], note = '', frequency = 'manual', dayOfMonth = 1, enabled = true }) {
+    const clean = String(name || '').trim();
+    const amt = Math.abs(Number(amount) || 0);
+    if (!clean || !validateText(clean, TEXT_LIMITS.taskTag)) { showToast('模板名称无效'); return false; }
+    if (!amt || amt > 1_000_000) { showToast('模板金额需在 0.01–1000000 之间'); return false; }
+    if ((state.settings.ledgerTemplates || []).length >= COLLECTION_LIMITS.ledgerTemplates) {
+      showToast('固定账目模板最多保存 30 个'); return false;
+    }
+    state.settings.ledgerTemplates.unshift({
+      id: nextId(), name: clean, type: type === 'income' ? 'income' : 'expense', amount: amt,
+      cat: cat || CATEGORIES[0], note: String(note || '').trim() || clean,
+      frequency: ['daily', 'weekday', 'monthly', 'manual'].includes(frequency) ? frequency : 'manual',
+      dayOfMonth: Math.min(31, Math.max(1, Number(dayOfMonth) || 1)), enabled: Boolean(enabled)
+    });
+    if (!save()) return false;
+    autoPostLedgerTemplates(true);
+    showToast('固定账目模板已保存');
+    return true;
+  }
+
+  function deleteLedgerTemplate(id) {
+    const list = state.settings.ledgerTemplates || [];
+    const idx = list.findIndex(item => String(item.id) === String(id));
+    if (idx < 0) return;
+    list.splice(idx, 1);
+    save();
+  }
+
+  function applyLedgerTemplate(template, date = todayKey()) {
+    if (!template) return false;
+    return addLedgerRecord({
+      type: template.type,
+      amount: template.amount,
+      note: template.note || template.name,
+      cat: template.cat,
+      date
+    });
+  }
+
+  function templateMatchesToday(template, date) {
+    const [year, month, day] = String(date).split('-').map(Number);
+    const weekday = new Date(year, month - 1, day).getDay();
+    if (template.frequency === 'daily') return true;
+    if (template.frequency === 'weekday') return weekday >= 1 && weekday <= 5;
+    if (template.frequency === 'monthly') return day === template.dayOfMonth;
+    return false;
+  }
+
+  function autoPostLedgerTemplates(silent = false) {
+    const date = todayKey();
+    let posted = 0;
+    for (const template of state.settings.ledgerTemplates || []) {
+      if (!template.enabled || !templateMatchesToday(template, date)) continue;
+      const duplicate = state.ledger.some(r => r.date === date &&
+        Number(r.amount).toFixed(2) === Number(template.amount).toFixed(2) &&
+        r.note === (template.note || template.name) && r.cat === template.cat);
+      if (duplicate) continue;
+      if (state.ledger.length >= COLLECTION_LIMITS.ledger) break;
+      state.ledger.unshift({
+        id: nextId(), type: template.type, amount: template.amount,
+        note: template.note || template.name, cat: template.cat, date
+      });
+      posted += 1;
+    }
+    if (posted) {
+      save();
+      if (!silent) showToast(`已自动记录 ${posted} 笔固定账目`);
+    }
+    return posted;
+  }
+
+  function deleteLedgerRecord(id) {    const idx = state.ledger.findIndex(r => r.id === id);
     if (idx < 0) return;
     const removed = { ...state.ledger[idx] };
     state.ledger.splice(idx, 1);
@@ -1093,6 +1223,11 @@ export function useWorkbench() {
     showToast('已清空本机工作台记录');
   }
 
+  if (typeof window !== 'undefined') {
+    autoPostLedgerTemplates();
+    watch(todayStr, () => autoPostLedgerTemplates());
+  }
+
   singleton = {
     state,
     appearance,
@@ -1126,6 +1261,11 @@ export function useWorkbench() {
     studyTodayMinutes,
     studyPercent,
     offWorkStatus,
+    todaySchedule,
+    addWorkTemplate,
+    deleteWorkTemplate,
+    applyWorkSchedule,
+    removeWorkSchedule,
     currentMonthSummary,
     rhythmStats,
     focusRemainingSec,
@@ -1154,6 +1294,10 @@ export function useWorkbench() {
     updateSteps,
     addLedgerRecord,
     deleteLedgerRecord,
+    addLedgerTemplate,
+    deleteLedgerTemplate,
+    applyLedgerTemplate,
+    autoPostLedgerTemplates,
     addSportRecord,
     habits,
     habitToday,

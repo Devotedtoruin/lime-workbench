@@ -55,6 +55,40 @@ function submit() {
   }
 }
 function catName(c) { return (c || '').slice(2).trim() || '未分类'; }
+
+/* ---------------- 固定账目模板 ---------------- */
+const templateDate = ref(wb.todayStr.value);
+const showTemplateForm = ref(false);
+const templateForm = reactive({
+  name: '', amount: '', type: 'expense', cat: CATEGORIES[0],
+  note: '', frequency: 'manual', dayOfMonth: 1
+});
+const frequencies = [
+  { id: 'manual', label: '手动模板' },
+  { id: 'daily', label: '每天自动' },
+  { id: 'weekday', label: '工作日自动' },
+  { id: 'monthly', label: '每月自动' }
+];
+function frequencyLabel(t) {
+  if (t.frequency === 'daily') return '每天自动';
+  if (t.frequency === 'weekday') return '工作日自动';
+  if (t.frequency === 'monthly') return `每月 ${t.dayOfMonth} 日自动`;
+  return '手动';
+}
+function saveTemplate() {
+  const ok = wb.addLedgerTemplate({ ...templateForm });
+  if (ok) {
+    templateForm.name = '';
+    templateForm.amount = '';
+    templateForm.note = '';
+    showTemplateForm.value = false;
+  }
+}
+function useTemplate(template) {
+  if (wb.applyLedgerTemplate(template, templateDate.value)) {
+    wb.showToast(`已记入 ${templateDate.value}`);
+  }
+}
 </script>
 
 <template>
@@ -124,6 +158,52 @@ function catName(c) { return (c || '').slice(2).trim() || '未分类'; }
       </section>
     </div>
 
+    <section class="panel glass rim templates-panel">
+      <div class="panel-head">
+        <h2 class="panel-title">固定模板</h2>
+        <span class="panel-sub">点一下记入所选日期；每日 / 工作日 / 每月自动记账</span>
+      </div>
+      <div class="template-tools">
+        <label class="field template-date">
+          <span>记账日期</span>
+          <input v-model="templateDate" class="input" type="date" />
+        </label>
+        <button class="btn btn-soft btn-sm" type="button" @click="showTemplateForm = !showTemplateForm">
+          <img :src="asset('assets/icons/plus.svg')" alt="" />新建模板
+        </button>
+      </div>
+
+      <div v-if="wb.state.settings.ledgerTemplates.length" class="template-grid">
+        <article v-for="t in wb.state.settings.ledgerTemplates" :key="t.id" class="template-card">
+          <div class="template-head">
+            <span class="template-icon"><img :src="asset(`assets/icons/${categoryIcon(t.cat)}.svg`)" alt="" /></span>
+            <div class="template-copy">
+              <strong>{{ t.name }}</strong>
+              <small>{{ t.type === 'income' ? '收入' : '支出' }} · {{ money(t.amount) }} · {{ frequencyLabel(t) }}</small>
+            </div>
+          </div>
+          <div class="template-actions">
+            <button class="btn btn-primary btn-sm" type="button" @click="useTemplate(t)">记入</button>
+            <button class="btn-icon is-danger" type="button" aria-label="删除模板" @click="wb.deleteLedgerTemplate(t.id)">
+              <img :src="asset('assets/icons/trash.svg')" alt="" />
+            </button>
+          </div>
+        </article>
+      </div>
+      <p v-else class="template-empty">例如：工作日午餐 ¥25、每天通勤 ¥6。保存后可以一键记入，也可以自动记账。</p>
+
+      <form v-if="showTemplateForm" class="template-form" @submit.prevent="saveTemplate">
+        <label class="field"><span>名称</span><input v-model="templateForm.name" class="input" maxlength="80" placeholder="午餐 / 通勤" required /></label>
+        <label class="field"><span>金额</span><input v-model="templateForm.amount" class="input" type="number" min="0.01" step="0.01" placeholder="25" required /></label>
+        <label class="field"><span>类型</span><select v-model="templateForm.type" class="input"><option value="expense">支出</option><option value="income">收入</option></select></label>
+        <label class="field"><span>分类</span><select v-model="templateForm.cat" class="input"><option v-for="c in CATEGORIES" :key="c" :value="c">{{ c.slice(2).trim() }}</option></select></label>
+        <label class="field"><span>频率</span><select v-model="templateForm.frequency" class="input"><option v-for="f in frequencies" :key="f.id" :value="f.id">{{ f.label }}</option></select></label>
+        <label v-if="templateForm.frequency === 'monthly'" class="field"><span>每月几号</span><input v-model.number="templateForm.dayOfMonth" class="input" type="number" min="1" max="31" /></label>
+        <label class="field"><span>备注</span><input v-model="templateForm.note" class="input" maxlength="300" placeholder="默认用名称" /></label>
+        <button class="btn btn-primary" type="submit">保存模板</button>
+      </form>
+    </section>
+
     <div class="list-head">
       <h2>记录</h2>
       <div class="segmented">
@@ -135,7 +215,7 @@ function catName(c) { return (c || '').slice(2).trim() || '未分类'; }
     </div>
 
     <section class="panel glass rim ledger-list-panel">
-      <div v-if="!filtered.length" class="empty" style="margin: 8px">
+      <div v-if="!filtered.length" class="empty list-empty">
         <span class="empty-art" aria-hidden="true"><img :src="asset('assets/icons/wallet-cards.svg')" alt="" /></span>
         <strong>所选范围暂无账目</strong>
         <p>记下办公支出与收入后，这里会按时间列出。</p>
@@ -206,6 +286,7 @@ function catName(c) { return (c || '').slice(2).trim() || '未分类'; }
 .list-head { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; margin-top: 4px; }
 .list-head h2 { font-size: var(--text-md); font-weight: 700; }
 .ledger-list-panel { padding: 0; }
+.list-empty { max-width: none; margin: 0; padding: 40px 24px; border-top: 1px solid var(--line); }
 .ledger-list { list-style: none; margin: 0; padding: 4px 20px; }
 .ledger-list li { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); }
 .ledger-list li:last-child { border-bottom: 0; }
@@ -218,11 +299,27 @@ function catName(c) { return (c || '').slice(2).trim() || '未分类'; }
 .ledger-amount.income { color: var(--brand-deep); }
 .ledger-amount.expense { color: var(--ink); }
 
+.template-tools { display: flex; align-items: flex-end; justify-content: flex-start; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+.template-date { min-width: 170px; }
+.template-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 8px; }
+.template-card { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-soft); }
+.template-head { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.template-icon { width: 32px; height: 32px; flex: 0 0 32px; display: grid; place-items: center; border-radius: 9px; background: var(--surface); border: 1px solid var(--line); }
+.template-icon img { width: 15px; height: 15px; opacity: .7; }
+.template-copy { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.template-copy strong { font-size: var(--text-body); font-weight: 650; }
+.template-copy small { font-size: var(--text-meta); color: var(--muted); }
+.template-actions { display: flex; align-items: center; gap: 3px; flex: 0 0 auto; }
+.template-empty { margin: 0; font-size: var(--text-sm); color: var(--muted); }
+.template-form { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)) auto; gap: 8px; align-items: end; margin-top: 14px; padding: 14px; border: 1px dashed var(--line-strong); border-radius: 14px; }
+.template-form .btn { align-self: end; }
+
 @media (max-width: 1080px) {
   .ledger-top { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 640px) {
   .entry-form { grid-template-columns: minmax(0, 1fr); }
+  .template-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .ledger-list { padding: 4px 14px; }
 }
 </style>

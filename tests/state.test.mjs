@@ -45,14 +45,48 @@ function legacyState() {
   };
 }
 
-test('schema version 4 explicitly supports v1/v2/v3/v4 without accepting future or coercible versions', () => {
-  assert.equal(CURRENT_STATE_VERSION, 4);
-  assert.deepEqual(SUPPORTED_STATE_VERSIONS, [1, 2, 3, 4]);
+test('schema version 5 explicitly supports v1-v4 without accepting future or coercible versions', () => {
+  assert.equal(CURRENT_STATE_VERSION, 5);
+  assert.deepEqual(SUPPORTED_STATE_VERSIONS, [1, 2, 3, 4, 5]);
   assert.equal(Object.isFrozen(SUPPORTED_STATE_VERSIONS), true);
   for (const version of SUPPORTED_STATE_VERSIONS) {
     assert.equal(parseBackup(encoded({ version, todos: [] })).version, CURRENT_STATE_VERSION);
   }
-  for (const version of [0, 5, '4', null, false, 2.5]) rejects({ version, todos: [] });
+  for (const version of [0, 6, '4', null, false, 2.5]) rejects({ version, todos: [] });
+});
+
+test('version 5 carries shift templates, per-day schedules and fixed ledger templates', () => {
+  const s = legacyState();
+  s.version = 5;
+  s.settings = {
+    ...s.settings,
+    breakStart: '12:00',
+    breakEnd: '13:00',
+    workTemplates: [{ id: 1, name: '早班', onTime: '08:30', offTime: '17:30', breakStart: '12:00', breakEnd: '13:00' }],
+    workSchedule: [{ id: 2, date: '2026-10-13', onTime: '10:00', offTime: '19:00', breakStart: '13:00', breakEnd: '14:00' }],
+    ledgerTemplates: [{ id: 3, name: '午餐', type: 'expense', amount: 25, cat: '🍚 吃饭', note: '工作日午餐', frequency: 'daily', dayOfMonth: 1, enabled: true }]
+  };
+  const parsed = parseBackup(encoded(s));
+  assert.equal(parsed.version, CURRENT_STATE_VERSION);
+  assert.equal(parsed.settings.workTemplates[0].name, '早班');
+  assert.equal(parsed.settings.workSchedule[0].date, '2026-10-13');
+  assert.equal(parsed.settings.ledgerTemplates[0].frequency, 'daily');
+
+  const bad = structuredClone(s);
+  bad.settings.workSchedule[0].date = '2026-13-01';
+  rejects(bad);
+  const badFrequency = structuredClone(s);
+  badFrequency.settings.ledgerTemplates[0].frequency = 'hourly';
+  rejects(badFrequency);
+});
+
+test('default shift and template arrays are not shared between states', () => {
+  const a = defaultState();
+  const b = defaultState();
+  a.settings.workTemplates.push({ id: 1, name: 'x', onTime: '09:00', offTime: '18:00', breakStart: '12:00', breakEnd: '13:00' });
+  assert.equal(b.settings.workTemplates.length, 0);
+  assert.equal(b.settings.workSchedule.length, 0);
+  assert.equal(b.settings.ledgerTemplates.length, 0);
 });
 
 test('fresh defaults include independent nested values and a version', () => {
@@ -414,7 +448,8 @@ test('exported text limits match field-specific backup bounds', () => {
 test('exported collection limits match caps for each live-input collection', () => {
   assert.deepEqual(COLLECTION_LIMITS, { todos: 2000, ledger: 5000, sport: 2000,
     reminders: 500, pendingAlerts: 501, datedMaps: 3660, waterPerDay: 200, waterTotal: 10000,
-    ledgerCats: 60, notes: 100, links: 100, habits: 20 });
+    ledgerCats: 60, notes: 100, links: 100, habits: 20, workTemplates: 20,
+    workSchedule: 366, ledgerTemplates: 30 });
   assert.equal(Object.isFrozen(COLLECTION_LIMITS), true);
   for (const field of ['todos', 'ledger', 'sport', 'reminders']) {
     const row = legacyState()[field][0];

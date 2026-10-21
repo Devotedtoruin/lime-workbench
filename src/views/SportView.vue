@@ -138,7 +138,7 @@ function sportOf(type) { return SPORTS.find(s => s.id === type) || SPORTS[0]; }
 </template>
 
 <style scoped>
-.privacy { display: inline-flex; align-items: center; gap: 7px; font-size: var(--text-meta); color: var(--muted); }
+.privacy { display: inline-flex; align-items: center; gap: 7px; padding-right: 4px; font-size: var(--text-meta); color: var(--muted); }
 .privacy img { width: 16px; height: 16px; opacity: .6; }
 .sport-top { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--shell-gap); align-items: start; }
 

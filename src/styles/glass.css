@@ -79,7 +79,7 @@ body::before {
   /* Was 62%: the veil buried the scene under near-white, leaving the glass nothing to
      refract. Keeping it light enough that colour reaches the glass is what makes the
      blur visible at all. */
-  background: color-mix(in srgb, var(--bg) 8%, transparent);
+  background: color-mix(in srgb, var(--bg) 16%, transparent);
 }
 
 @keyframes scene-drift {
@@ -133,7 +133,7 @@ body::before {
     linear-gradient(140deg, rgb(255 255 255 / .16), transparent 44%);
   backdrop-filter: blur(18px) saturate(165%); -webkit-backdrop-filter: blur(18px) saturate(165%);
   border-color: color-mix(in srgb, var(--brand) 16%, var(--line));
-  box-shadow: 0 24px 60px -40px rgb(9 40 30 / .30), inset 0 1px 0 rgb(255 255 255 / .62);
+  box-shadow: 0 12px 32px -28px rgb(9 40 30 / .12), inset 0 1px 0 rgb(255 255 255 / .62);
 }
 [data-card-style="solid"] .panel.glass {
   background: var(--surface); background-image: none;

@@ -148,7 +148,7 @@ function label(task) {
         <span>安排</span>
       </div>
 
-      <div v-if="!rows.length" class="empty" style="margin: 16px">
+      <div v-if="!rows.length" class="empty list-empty">
         <span class="empty-art" aria-hidden="true"><img :src="asset('assets/icons/list-checks.svg')" alt="" /></span>
         <strong>这里还没有任务</strong>
         <p>一句话就能创建任务，例如「明天下午三点交周报」。</p>
@@ -229,6 +229,7 @@ function label(task) {
 .toolbar-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 
 .list-panel { padding: 0; overflow: hidden; width: 100%; }
+.list-empty { max-width: none; margin: 0; padding: 46px 24px; border-top: 1px solid var(--line); }
 /* The title column is capped rather than 1fr: a full-width title column was 1280px of mostly
    empty line with the metadata pushed to the far right. minmax(0, 720px) keeps the text
    readable and hands the leftover width to the metadata column. */

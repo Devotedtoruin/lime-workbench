@@ -39,7 +39,7 @@ const heroNow = computed(() => new Date(wb.nowTick.value).toLocaleTimeString('zh
 }));
 
 const workdayPct = computed(() => {
-  const s = wb.state.settings;
+  const s = wb.todaySchedule.value;
   const toMin = value => {
     const [h, m] = String(value || '').split(':').map(Number);
     return Number.isFinite(h) && Number.isFinite(m) ? h * 60 + m : 0;
@@ -226,6 +226,7 @@ function taskTime(task) {
             <button class="btn btn-soft btn-sm" type="button" @click="wb.breakOpen.value = true">休息一下</button>
             <button class="btn btn-primary btn-sm" type="button" @click="wb.goto('standup')">写日报</button>
           </div>
+          <button class="pulse-link" type="button" @click="wb.goto('me')">排班与午休设置 <span aria-hidden="true">→</span></button>
         </article>
       </aside>
     </section>
@@ -789,7 +790,7 @@ button.stat { cursor: pointer; }
   background: radial-gradient(closest-side, color-mix(in srgb, var(--brand) 26%, transparent), transparent 72%);
   filter: blur(10px);
 }
-.hero-kicker { display: flex; align-items: center; gap: 9px; font-size: 12px; font-weight: 600; letter-spacing: .08em; color: var(--muted); text-transform: uppercase; }
+.hero-kicker { display: flex; align-items: center; gap: 9px; font-size: 12.5px; font-weight: 600; letter-spacing: .04em; color: var(--muted); }
 .live-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--brand); box-shadow: 0 0 0 4px color-mix(in srgb, var(--brand) 14%, transparent); }
 .dot-sep { opacity: .4; }
 .hero-title { margin: 28px 0 12px; font-family: var(--font-display); font-size: clamp(42px, 4.4vw, 64px); font-weight: 600; line-height: 1.02; letter-spacing: -.045em; }
@@ -821,10 +822,12 @@ button.stat { cursor: pointer; }
 .focus-hero .focus-row { margin-top: 2px; }
 .focus-hero .focus-more-link { align-self: flex-start; margin-top: auto; padding-left: 0; }
 .pulse-card { padding: 20px 24px 22px; }
-.pulse-kicker { font-size: 11.5px; font-weight: 650; letter-spacing: .06em; color: var(--muted); text-transform: uppercase; }
+.pulse-kicker { font-size: 12.5px; font-weight: 650; letter-spacing: .02em; color: var(--muted); }
 .pulse-clock { display: block; margin: 6px 0 2px; font-size: 30px; font-weight: 750; letter-spacing: -.035em; line-height: 1.15; }
 .pulse-sub { font-size: 12.5px; color: var(--muted); line-height: 1.5; }
 .pulse-actions { display: flex; gap: 8px; margin-top: 14px; }
+.pulse-link { margin-top: 10px; padding: 0; border: 0; background: transparent; color: var(--muted); font-size: 11.5px; text-align: left; }
+.pulse-link:hover { color: var(--brand-deep); }
 .pulse-actions .btn { flex: 1; }
 .blocks { align-items: stretch; gap: 16px; }
 .block { transition: none; }
@@ -861,10 +864,10 @@ button.stat { cursor: pointer; }
 .hero-main.panel.glass {
   background:
     radial-gradient(ellipse 60% 80% at 82% 0%, rgb(184 215 133 / .20), transparent 60%),
-    linear-gradient(135deg, rgb(8 30 24 / .97), rgb(14 47 38 / .93) 55%, rgb(22 67 53 / .88));
+    linear-gradient(135deg, rgb(14 45 36 / .94), rgb(22 60 48 / .90) 55%, rgb(30 79 62 / .86));
   color: #eef7ee;
   border-color: rgb(184 215 133 / .20);
-  box-shadow: 0 40px 90px -52px rgb(3 22 16 / .9), inset 0 1px 0 rgb(255 255 255 / .16);
+  box-shadow: 0 20px 50px -42px rgb(3 22 16 / .35), inset 0 1px 0 rgb(255 255 255 / .16);
   backdrop-filter: blur(24px) saturate(135%); -webkit-backdrop-filter: blur(24px) saturate(135%);
 }
 .hero-main::before {
@@ -901,18 +904,18 @@ button.stat { cursor: pointer; }
   content: ""; position: absolute; right: -18px; top: -34px; width: 150px; height: 150px;
   border: 1px solid rgb(184 215 133 / .18); border-radius: 50%; pointer-events: none;
 }
-.hero-now-label { font-size: 11px; letter-spacing: .26em; color: rgb(235 247 238 / .42); }
+.hero-now-label { font-size: 13px; letter-spacing: .1em; color: rgb(235 247 238 / .42); }
 .hero-now-time { font-size: clamp(48px, 4.4vw, 68px); font-weight: 600; letter-spacing: -.06em; line-height: 1; color: #f4faf3; }
 .hero-now small { max-width: 170px; font-size: 11px; line-height: 1.45; color: rgb(235 247 238 / .52); }
 .focus-dial {
   width: 174px; height: 174px; margin: 10px auto 2px; padding: 5px; border-radius: 50%;
   display: grid; place-items: center;
   background: conic-gradient(var(--brand) calc(var(--p, 0) * 1%), color-mix(in srgb, var(--line) 72%, transparent) 0);
-  box-shadow: 0 12px 40px -22px color-mix(in srgb, var(--brand) 60%, transparent);
+  box-shadow: 0 10px 30px -24px color-mix(in srgb, var(--brand) 28%, transparent);
 }
 .focus-dial-inner { width: 100%; height: 100%; border-radius: 50%; display: grid; place-items: center; align-content: center; background: color-mix(in srgb, var(--surface) 42%, transparent); border: 1px solid rgb(255 255 255 / .38); }
 .focus-hero .focus-clock { margin: 0; font-size: 44px; line-height: 1; }
-.focus-dial small { margin-top: 5px; font-size: 11px; letter-spacing: .2em; color: var(--muted); }
+.focus-dial small { margin-top: 5px; font-size: 13px; letter-spacing: .08em; color: var(--muted); }
 @media (hover: hover) {
   .panel.glass { transition: transform .35s var(--ease-out), box-shadow .35s var(--ease-out), border-color .35s var(--ease-out); }
   .panel.glass:hover { transform: translateY(-2px); border-color: color-mix(in srgb, var(--brand) 26%, var(--line-strong)); box-shadow: 0 28px 70px -38px rgb(9 40 30 / .42), inset 0 1px 0 rgb(255 255 255 / .6); }
