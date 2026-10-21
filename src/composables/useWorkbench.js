@@ -311,6 +311,17 @@ export function useWorkbench() {
       : { ...state.settings, scheduleOverride: false };
   });
 
+  function onDutyMinutes(settings, now) {
+    let minutes = workedMinutes(settings, now);
+    if (settings.breakStart && settings.breakEnd && settings.breakEnd > settings.breakStart) {
+      const breakStart = timeOnDate(settings.breakStart, now);
+      const breakEnd = timeOnDate(settings.breakEnd, now);
+      const elapsed = Math.max(0, Math.min(now, breakEnd) - breakStart) / 60000;
+      minutes -= Math.min(minutes, elapsed);
+    }
+    return Math.max(0, Math.round(minutes));
+  }
+
   const offWorkStatus = computed(() => {
     const s = todaySchedule.value;
     const now = nowDate.value;
@@ -325,13 +336,13 @@ export function useWorkbench() {
       return { kicker: '待上班', value: `${s.onTime} 上班`, sub: `今日工作时段 ${s.onTime}–${s.offTime}${breakText}`, quiet: true };
     }
     if (done) {
-      return { kicker: '已经下班', value: '下班啦', sub: `今日在岗 ${workedMinutes(s, now)} 分钟`, quiet: true };
+      return { kicker: '已经下班', value: '下班啦', sub: `今日在岗 ${onDutyMinutes(s, now)} 分钟`, quiet: true };
     }
     const clock = hours > 0 ? `${hours}:${pad(minutes)}:${pad(seconds)}` : `${pad(minutes)}:${pad(seconds)}`;
     return {
       kicker: '距离下班',
       value: clock,
-      sub: `${s.onTime}–${s.offTime}${breakText} · 已在岗 ${workedMinutes(s, now)} 分钟`,
+      sub: `${s.onTime}–${s.offTime}${breakText} · 已在岗 ${onDutyMinutes(s, now)} 分钟`,
       quiet: false
     };
   });
