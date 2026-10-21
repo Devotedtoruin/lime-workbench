@@ -13,8 +13,9 @@ const hasIdentity = computed(() =>
 // Two-character labels keep every row on the same text rhythm; page headings keep the full names.
 const navItems = [
   { page: 'home', label: '今天', icon: 'sun-medium' },
-  { page: 'todo', label: '计划', icon: 'list-checks' },
+  { page: 'todo', label: '任务', icon: 'list-checks' },
   { page: 'study', label: '专注', icon: 'timer' },
+  { page: 'standup', label: '日报', icon: 'clipboard-list' },
   { page: 'calendar', label: '日历', icon: 'calendar-days' }
 ];
 const lifeItems = [
@@ -66,13 +67,13 @@ watch(drawerOpen, open => {
     </a>
 
     <div class="rail-quick">
-      <button class="rail-quick-btn rail-quick-primary" type="button" @click="navigate('todo')">
-        <img :src="asset('assets/icons/plus.svg')" alt="" />
-        <span>快速添加</span>
+      <button class="rail-quick-btn rail-quick-primary" type="button" @click="navigate('standup')">
+        <img :src="asset('assets/icons/clipboard-list.svg')" alt="" />
+        <span>写日报</span>
       </button>
-      <button class="rail-quick-btn" type="button" @click="navigate('study')">
-        <img :src="asset('assets/icons/play.svg')" alt="" />
-        <span>开始专注</span>
+      <button class="rail-quick-btn" type="button" @click="wb.breakOpen.value = true">
+        <img :src="asset('assets/icons/coffee.svg')" alt="" />
+        <span>休息一下</span>
       </button>
     </div>
 

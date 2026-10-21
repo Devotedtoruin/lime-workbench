@@ -57,6 +57,14 @@ onBeforeUnmount(() => window.removeEventListener('scroll', onScroll));
         <kbd>Ctrl K</kbd>
       </button>
 
+      <button class="topbar-mini" type="button" title="休息一下（R）" @click="wb.breakOpen.value = true">
+        <img :src="asset('assets/icons/coffee.svg')" alt="" />
+        <span>休息</span>
+      </button>
+      <button class="topbar-mini" type="button" title="写日报（D）" @click="wb.goto('standup')">
+        <img :src="asset('assets/icons/clipboard-list.svg')" alt="" />
+        <span>日报</span>
+      </button>
       <!-- 天气胶囊 -->
       <button class="weather-pill" type="button" title="查看天气与通勤" @click="wb.goto('weather')">
         <img :src="weather.weatherData.icon" alt="" />
@@ -89,7 +97,15 @@ onBeforeUnmount(() => window.removeEventListener('scroll', onScroll));
   </header>
 </template>
 
-<style scoped>
+<style scoped>.topbar-mini {
+  display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 12px;
+  border: 1px solid var(--line); border-radius: 99px; background: color-mix(in srgb, var(--surface) 62%, transparent);
+  color: var(--ink-soft); font-size: 12px; font-weight: 600;
+  transition: border-color var(--motion-fast), background var(--motion-fast);
+}
+.topbar-mini img { width: 15px; height: 15px; opacity: .6; }
+.topbar-mini:hover { border-color: var(--line-strong); background: var(--surface); }
+
 .topbar {
   position: sticky; top: var(--shell-gap); z-index: 30;
   display: flex; align-items: center; justify-content: space-between; gap: 16px;
@@ -173,6 +189,8 @@ kbd {
 
 @media (max-width: 1180px) {
   .command-trigger { width: 44px; padding: 0; justify-content: center; }
+  .topbar-mini span { display: none; }
+  .topbar-mini { width: 38px; padding: 0; justify-content: center; }
   .command-trigger span, .command-trigger kbd { display: none; }
 }
 @media (max-width: 860px) {

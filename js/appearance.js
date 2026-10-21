@@ -29,7 +29,7 @@ export function defaultAppearance() {
     version: 2, theme: 'system', preset: 'aurora', opacity: 0.52,
     backgroundBlur: 4, panelBlur: 14, radius: 12, density: 'compact',
     accent: 'green', font: 'system', backgroundImage: '',
-    backgroundAssetId: '', fontAssetId: '', motion: 'system', cardStyle: 'solid',
+    backgroundAssetId: '', fontAssetId: '', motion: 'system', cardStyle: 'glass',
     backgroundDim: 0, fontScale: 1,
     widgets: Object.fromEntries(WIDGET_NAMES.map(name => [name, true]))
   };

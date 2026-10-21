@@ -10,7 +10,6 @@ const wb = useWorkbench();
 const settingsSections = [
   { id: 'settings-identity', label: '形象' },
   { id: 'settings-appearance', label: '外观' },
-  { id: 'settings-modules', label: '模块' },
   { id: 'settings-goals', label: '目标' },
   { id: 'settings-ai', label: 'AI' },
   { id: 'settings-data', label: '数据' }
@@ -110,18 +109,6 @@ const cardStyles = [
   { id: 'solid', name: '纯净实色' },
   { id: 'hairline', name: '极简细边框' }
 ];
-const widgetOptions = [
-  { id: 'focus', name: '专注计时' },
-  { id: 'reminders', name: '接下来（提醒）' },
-  { id: 'weather', name: '顶栏天气' },
-  { id: 'work', name: '下班倒计时' },
-  { id: 'rhythm', name: '近 7 天记录' },
-  { id: 'ledger', name: '本月收支' },
-  { id: 'quick', name: '饮水与步数' },
-  { id: 'notes', name: '工作便签' },
-  { id: 'links', name: '工作链接' }
-];
-
 const bgInput = ref(null);
 const bgBusy = ref(false);
 
@@ -143,11 +130,6 @@ async function pickBackground(event) {
 function removeBackground() {
   wb.updateAppearance({ backgroundImage: '', backgroundAssetId: '' });
   wb.showToast('壁纸已移除');
-}
-
-function setWidget(id, value) {
-  const next = { ...wb.appearance.widgets, [id]: value };
-  wb.updateAppearance({ widgets: next });
 }
 
 /* ---------------- 工作与目标 ---------------- */
@@ -432,28 +414,6 @@ function clearData() {
       </div>
     </section>
 
-    <!-- 首页模块 -->
-    <section id="settings-modules" class="panel glass rim">
-      <div class="panel-head">
-        <h2 class="panel-title">首页内置模块</h2>
-        <span class="panel-sub">隐藏不会删除记录</span>
-      </div>
-      <div class="widget-grid">
-        <label v-for="w in widgetOptions" :key="w.id" class="widget-item">
-          <input
-            class="checkbox"
-            type="checkbox"
-            :checked="wb.appearance.widgets[w.id] !== false"
-            @change="setWidget(w.id, $event.target.checked)"
-          />
-          <span>{{ w.name }}</span>
-        </label>
-      </div>
-      <div class="actions-row">
-        <button class="btn btn-soft btn-sm" type="button" @click="wb.resetBlocks()">恢复默认模块顺序</button>
-      </div>
-    </section>
-
     <!-- 工作与目标 -->
     <section id="settings-goals" class="panel glass rim">
       <div class="panel-head"><h2 class="panel-title">工作与生活目标</h2></div>
@@ -551,7 +511,8 @@ function clearData() {
 .settings-nav button:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
 section[id^="settings-"] { scroll-margin-top: 140px; }
 @media (max-width: 640px) {
-  .settings-nav { top: 76px; width: 100%; overflow-x: auto; flex-wrap: nowrap; scrollbar-width: none; }`n  section[id^="settings-"] { scroll-margin-top: 124px; }
+  .settings-nav { top: 76px; width: 100%; overflow-x: auto; flex-wrap: nowrap; scrollbar-width: none; }
+  section[id^="settings-"] { scroll-margin-top: 124px; }
   .settings-nav::-webkit-scrollbar { display: none; }
   .settings-nav button { flex: 0 0 auto; }
 }

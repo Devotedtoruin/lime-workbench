@@ -26,15 +26,13 @@ import {
 import { workspaceNameOf } from '../../js/branding.js';
 import { INPUT_RULES, inRange } from '../../js/input-rules.js';
 
-const LAYOUT_ORDER_KEY = 'lime-modular-blocks-v1';
 const RAIL_COLLAPSED_KEY = 'lime-rail-collapsed-v2';
 
 export const DEFAULT_BLOCKS = [
   { id: 'tasks', title: '今日任务', span: 8, core: true },
-  { id: 'focus', title: '专注计时', span: 4, widget: 'focus' },
   { id: 'reminders', title: '接下来（提醒）', span: 4, widget: 'reminders' },
-  { id: 'notes', title: '工作便签（瀑布流）', span: 8, widget: 'notes' },
-  { id: 'links', title: '工作链接', span: 8, widget: 'links' },
+  { id: 'notes', title: '工作便签（瀑布流）', span: 4, widget: 'notes' },
+  { id: 'links', title: '工作链接', span: 4, widget: 'links' },
   { id: 'ledger', title: '本月收支', span: 4, widget: 'ledger' },
   { id: 'rhythm', title: '近 7 天趋势', span: 4, widget: 'rhythm' },
   { id: 'review', title: '今日复盘', span: 4 }
@@ -55,6 +53,7 @@ export const PAGE_LABELS = {
   home: '今天',
   todo: '计划',
   study: '专注',
+  standup: '日报',
   calendar: '日历与提醒',
   ledger: '账本',
   habits: '生活习惯',
@@ -88,6 +87,7 @@ export function useWorkbench() {
   // 侧边栏状态（极简悬浮可折叠岛 + 移动端隐藏式抽屉）
   const railCollapsed = ref(false);
   const mobileDrawerOpen = ref(false);
+  const breakOpen = ref(false);
   const ledgerDialogOpen = ref(false);
   function openLedgerDialog() { ledgerDialogOpen.value = true; }
   function closeLedgerDialog() { ledgerDialogOpen.value = false; }
@@ -100,74 +100,7 @@ export function useWorkbench() {
     try { localStore.setItem(RAIL_COLLAPSED_KEY, String(railCollapsed.value)); } catch { /* ignore */ }
   }
 
-  // 自定义积木模块顺序与宽窄（Modular Blocks）
-  const blocks = ref(loadBlocks());
-  const layoutEditing = ref(false);
-
-  function loadBlocks() {
-    try {
-      const raw = localStore.getItem(LAYOUT_ORDER_KEY);
-      if (!raw) return DEFAULT_BLOCKS.map(b => ({ ...b }));
-      const parsed = JSON.parse(raw);
-      if (!Array.isArray(parsed)) return DEFAULT_BLOCKS.map(b => ({ ...b }));
-      const map = new Map(DEFAULT_BLOCKS.map(b => [b.id, { ...b }]));
-      const ordered = [];
-      for (const item of parsed) {
-        if (item && map.has(item.id)) {
-          const base = map.get(item.id);
-          if ([4, 6, 8, 12].includes(item.span)) base.span = item.span;
-          ordered.push(base);
-          map.delete(item.id);
-        }
-      }
-      for (const rest of map.values()) ordered.push(rest);
-      return ordered;
-    } catch {
-      return DEFAULT_BLOCKS.map(b => ({ ...b }));
-    }
-  }
-
-  function saveBlocks() {
-    try {
-      localStore.setItem(LAYOUT_ORDER_KEY, JSON.stringify(blocks.value.map(({ id, span }) => ({ id, span }))));
-    } catch { /* ignore */ }
-  }
-
-  function moveBlock(id, delta) {
-    const list = [...blocks.value];
-    const idx = list.findIndex(b => b.id === id);
-    if (idx < 0) return;
-    const target = idx + delta;
-    if (target < 0 || target >= list.length) return;
-    const [item] = list.splice(idx, 1);
-    list.splice(target, 0, item);
-    blocks.value = list;
-    saveBlocks();
-  }
-
-  function reorderBlocksByDrag(fromId, toId) {
-    if (!fromId || !toId || fromId === toId) return;
-    const list = [...blocks.value];
-    const fromIdx = list.findIndex(b => b.id === fromId);
-    const toIdx = list.findIndex(b => b.id === toId);
-    if (fromIdx < 0 || toIdx < 0) return;
-    const [item] = list.splice(fromIdx, 1);
-    list.splice(toIdx, 0, item);
-    blocks.value = list;
-    saveBlocks();
-  }
-
-  function toggleBlockSpan(id) {
-    const item = blocks.value.find(b => b.id === id);
-    if (!item) return;
-    item.span = item.span === 4 ? 8 : item.span === 8 ? 12 : 4;
-    saveBlocks();
-  }
-
-  function resetBlocks() {
-    blocks.value = DEFAULT_BLOCKS.map(b => ({ ...b }));
-    saveBlocks();
-  }
+  const blocks = ref(DEFAULT_BLOCKS.map(b => ({ ...b })));
 
   // Toast 与 Undo
   const toastMessage = ref('');
@@ -286,7 +219,7 @@ export function useWorkbench() {
   // direction: moving down the rail slides the new page in from below, moving up slides it in
   // from above, which gives the rail a spatial memory. Firefox without support simply swaps
   // immediately — the same page, just without the transition.
-  const PAGE_ORDER = ['home', 'todo', 'study', 'calendar', 'ledger', 'habits', 'sport', 'weather', 'me'];
+  const PAGE_ORDER = ['home', 'todo', 'study', 'standup', 'calendar', 'ledger', 'habits', 'sport', 'weather', 'me'];
   const todoFilter = ref('today');
 
   function commitPage(target) {
@@ -1169,11 +1102,11 @@ export function useWorkbench() {
     todoFilter,
     railCollapsed,
     mobileDrawerOpen,
+    breakOpen,
     ledgerDialogOpen,
     openLedgerDialog,
     closeLedgerDialog,
     blocks,
-    layoutEditing,
     toastMessage,
     toastVisible,
     undoMessage,
@@ -1208,10 +1141,6 @@ export function useWorkbench() {
     execIntent,
     goto,
     toggleRailCollapsed,
-    moveBlock,
-    reorderBlocksByDrag,
-    toggleBlockSpan,
-    resetBlocks,
     updateAppearance,
     toggleDarkTheme,
     resetAppearanceToDefault,

@@ -1,135 +1,57 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { computed, ref } from 'vue';
 import { asset } from '../lib/assets.js';
 import { useWorkbench } from '../composables/useWorkbench.js';
 import { burstFrom } from '../lib/effects.js';
-import AnimatedNumber from '../components/AnimatedNumber.vue';
-import ProgressRing from '../components/ProgressRing.vue';
 import { reviewFor, reviewHeadline } from '../../js/review.js';
 import EmptyState from '../components/EmptyState.vue';
 
 const emit = defineEmits(['open-command', 'new-task']);
 const wb = useWorkbench();
 
-/* ---------------- 快速添加（Split Button） ---------------- */
+/* ---------------- 快速添加 ---------------- */
 const quickText = ref('');
-const splitOpen = ref(false);
 const quickInput = ref(null);
-// Declared before the menu so "新建便签" can open the inline editor directly.
 const noteDraft = ref({ open: false, id: null, title: '', body: '' });
 
 function startNote(note = null) {
   noteDraft.value = note
     ? { open: true, id: note.id, title: note.title, body: note.body }
     : { open: true, id: null, title: '', body: '' };
-  // Bring the editor into view even when the notes block sits lower in the grid.
   requestAnimationFrame(() => {
     document.querySelector('.notes-panel .inline-editor input')?.focus({ preventScroll: false });
   });
 }
 
-const quickMenu = [
-  { label: '新建详细任务', hint: '日期、时间、优先级与标签', icon: 'calendar-plus', action: () => emit('new-task') },
-  { label: '新建便签', hint: '记下会议要点与想法', icon: 'sticky-note', action: () => startNote() },
-  { label: '记一笔', hint: '支出或收入', icon: 'wallet', action: () => wb.openLedgerDialog() },
-  { label: '添加工作链接', hint: '常用文档、看板或后台', icon: 'arrow-up-right', action: () => startLink() },
-  { label: '添加定时提醒', hint: '会议、截止或休息', icon: 'alarm-clock', action: () => wb.goto('calendar') },
-  { label: '快捷命令', hint: 'Ctrl K', icon: 'command', action: () => emit('open-command') }
-];
-
 function submitQuick() {
   if (!quickText.value.trim()) { quickInput.value?.focus(); return; }
   if (wb.addTodo(quickText.value, { bucket: 'today' })) {
     quickText.value = '';
-    // Clicking the button moved focus to it, so the next line the user types went nowhere and
-    // Enter did nothing — which is why adding a second task required clicking elsewhere first.
-    // Handing focus back keeps the composer usable for consecutive entry.
     requestAnimationFrame(() => quickInput.value?.focus());
   }
 }
-function toggleSplit() { splitOpen.value = !splitOpen.value; }
-function runMenu(item) { splitOpen.value = false; item.action(); }
-function onDocClick(event) {
-  if (splitOpen.value && !event.target.closest?.('.split-wrap')) splitOpen.value = false;
-}
-onMounted(() => document.addEventListener('pointerdown', onDocClick));
-onBeforeUnmount(() => document.removeEventListener('pointerdown', onDocClick));
-
 /* ---------------- KPI ---------------- */
 // No "今日待办" card here: the task panel right below already carries that count and its list.
 // A summary card duplicating the panel it sits above just teaches people to skip both.
-const kpis = computed(() => [
-  {
-    id: 'study',
-    label: '今日专注',
-    icon: 'timer',
-    tone: 'tile-soft',
-    value: wb.studyTodayMinutes.value,
-    unit: '分钟',
-    sub: `目标 60 分钟 · ${wb.studyPercent.value}%`,
-    progress: wb.studyPercent.value,
-    run: () => wb.goto('study')
-  },
-  {
-    id: 'off',
-    label: wb.offWorkStatus.value.kicker,
-    icon: 'clock-3',
-    tone: 'tile-soft',
-    value: wb.offWorkStatus.value.value,
-    sub: wb.offWorkStatus.value.sub,
-    quiet: wb.offWorkStatus.value.quiet,
-    progress: null,
-    run: () => wb.goto('me')
-  },
-  {
-    id: 'water',
-    label: '饮水',
-    icon: 'droplet',
-    tone: 'tile-soft',
-    value: wb.waterTodayMl.value,
-    unit: `/ ${wb.state.settings.waterGoal} ml`,
-    sub: `完成 ${wb.waterPercent.value}%`,
-    ring: wb.waterPercent.value,
-    action: { label: '+250', run: () => wb.addWater(250) }
-  },
-  {
-    id: 'steps',
-    label: '步数',
-    icon: 'footprints',
-    tone: 'tile-soft',
-    value: wb.stepsToday.value,
-    unit: `/ ${wb.state.settings.stepGoal}`,
-    sub: `完成 ${wb.stepsPercent.value}%`,
-    ring: wb.stepsPercent.value,
-    toneRing: 'brand'
-  }
-]);
 
-/* ---------------- 拖拽排序（Modular Blocks） ---------------- */
-const dragId = ref('');
-const dropId = ref('');
-function onDragStart(id, event) {
-  dragId.value = id;
-  event.dataTransfer.effectAllowed = 'move';
-  event.dataTransfer.setData('text/plain', id);
-}
-function onDragOver(id, event) {
-  if (!dragId.value || dragId.value === id) return;
-  event.preventDefault();
-  dropId.value = id;
-}
-function onDrop(id) {
-  wb.reorderBlocksByDrag(dragId.value, id);
-  dragId.value = ''; dropId.value = '';
-}
-function onDragEnd() { dragId.value = ''; dropId.value = ''; }
+const heroNow = computed(() => new Date(wb.nowTick.value).toLocaleTimeString('zh-CN', {
+  hour: '2-digit', minute: '2-digit', hour12: false
+}));
 
-const visibleBlocks = computed(() =>
-  wb.blocks.value.filter(b => {
-    if (!b.widget) return true;
-    return wb.state.settings.widgets?.[b.widget] !== false && wb.appearance?.widgets?.[b.widget] !== false;
-  })
-);
+const workdayPct = computed(() => {
+  const s = wb.state.settings;
+  const toMin = value => {
+    const [h, m] = String(value || '').split(':').map(Number);
+    return Number.isFinite(h) && Number.isFinite(m) ? h * 60 + m : 0;
+  };
+  const now = new Date();
+  if (Array.isArray(s.restDays) && s.restDays.includes(now.getDay())) return 0;
+  const start = toMin(s.onTime) || 540;
+  const end = toMin(s.offTime) || 1080;
+  if (end <= start) return 0;
+  const current = now.getHours() * 60 + now.getMinutes();
+  return Math.max(0, Math.min(100, Math.round(((current - start) / (end - start)) * 100)));
+});
 
 /* ---------------- 今日任务 ---------------- */
 const agendaLimit = ref(6);
@@ -221,145 +143,99 @@ function taskTime(task) {
 
 <template>
   <div class="home page-shell">
-    <!-- 今日头部：日期 + 状态 + 主动作 -->
-    <header class="today-head">
-      <div class="today-copy">
-        <p class="today-eyebrow">{{ wb.greetingText.value }}</p>
-        <h1>今天<span v-if="todayTasks.length" class="today-badge">{{ todayTasks.length }}</span></h1>
-        <p class="today-sub">
-          <template v-if="wb.overdueCount.value"><b class="warn">{{ wb.overdueCount.value }}</b> 项逾期 · </template>
-          {{ todayTasks.length ? '按优先级推进，先完成最重要的一件事。' : '还没有安排，先写下一件事。' }}
+    <!-- 今日主视觉 -->
+    <section class="hero">
+      <article class="hero-main panel glass rim">
+        <div class="hero-kicker">
+          <span class="live-dot" aria-hidden="true"></span>
+          {{ wb.formattedDate.value }} <span class="dot-sep">·</span> {{ wb.greetingText.value }}
+        </div>
+        <h1 class="hero-title">今天，<br /><span>把重要的事做完。</span></h1>
+        <p class="hero-sub">
+          <template v-if="wb.overdueCount.value"><b>{{ wb.overdueCount.value }}</b> 项已逾期 · </template>
+          {{ todayTasks.length ? `还有 ${todayTasks.length} 项待办，先完成最重要的一件。` : '还没有安排，先写下一件事。' }}
         </p>
-      </div>
-      <div class="today-actions">
-        <button class="btn btn-soft" type="button" @click="wb.goto('study')">
-          <img :src="asset('assets/icons/timer.svg')" alt="" />开始专注
-        </button>
-        <button class="btn btn-primary" type="button" @click="emit('new-task')">
-          <img :src="asset('assets/icons/plus.svg')" alt="" />新建任务
-        </button>
-      </div>
-    </header>
 
-    <section class="today-board">
-      <form class="quick-add" @submit.prevent="submitQuick">
-        <img class="quick-lead" :src="asset('assets/icons/sparkles.svg')" alt="" />
-        <input
-          ref="quickInput"
-          v-model="quickText"
-          class="quick-input"
-          maxlength="200"
-          placeholder="写下一件事，回车保存（如：15:00 项目评审）"
-          aria-label="快速添加今日任务"
-        />
-        <div class="split-wrap" :class="{ 'is-open': splitOpen }">
-          <button class="btn btn-primary split-main" type="submit">
-            <img :src="asset('assets/icons/plus.svg')" alt="" />添加
-          </button>
-          <button
-            class="btn btn-primary split-caret"
-            type="button"
-            aria-label="更多添加方式"
-            :aria-expanded="splitOpen"
-            @click="toggleSplit"
-          >
-            <img :src="asset('assets/icons/chevron-down.svg')" alt="" />
-          </button>
-          <div v-if="splitOpen" class="split-menu glass rim" role="menu">
-            <button
-              v-for="item in quickMenu"
-              :key="item.label"
-              type="button"
-              role="menuitem"
-              @click="runMenu(item)"
-            >
-              <img :src="asset(`assets/icons/${item.icon}.svg`)" alt="" />
-              <span>{{ item.label }}<small v-if="item.hint">{{ item.hint }}</small></span>
+        <div class="hero-brief">
+          <div><span>下一件事</span><strong>{{ todayTasks[0]?.text || '还没有安排' }}</strong></div>
+          <div><span>下个节点</span><strong>{{ nextUpcoming[0]?.label || '暂无提醒' }}</strong></div>
+        </div>
+
+        <form class="hero-capture" @submit.prevent="submitQuick">
+          <img :src="asset('assets/icons/sparkles.svg')" alt="" />
+          <input
+            ref="quickInput"
+            v-model="quickText"
+            class="hero-input"
+            maxlength="200"
+            placeholder="写下一件事，回车保存（如：15:00 项目评审）"
+            aria-label="快速添加今日任务"
+          />
+          <button class="btn btn-primary" type="submit">添加</button>
+          <button class="btn btn-ghost btn-sm hero-detail" type="button" @click="emit('new-task')">详细</button>
+        </form>
+
+        <div class="hero-now" aria-label="当前时间">
+          <span class="hero-now-label">NOW</span>
+          <strong class="hero-now-time numeric">{{ heroNow }}</strong>
+          <small>{{ wb.offWorkStatus.value.sub }}</small>
+        </div>
+
+        <div class="hero-meta" aria-label="今日概览">
+          <div><span>今日待办</span><strong class="numeric">{{ todayTasks.length }}</strong></div>
+          <div><span>逾期</span><strong class="numeric warn">{{ wb.overdueCount.value }}</strong></div>
+          <div><span>专注</span><strong class="numeric">{{ wb.studyTodayMinutes.value }}<em>min</em></strong></div>
+          <div><span>工时</span><strong class="numeric">{{ workdayPct }}<em>%</em></strong></div>
+        </div>
+      </article>
+
+      <aside class="hero-side">
+        <article class="panel glass rim focus-hero">
+          <div class="panel-head">
+            <span class="focus-kicker"><i aria-hidden="true"></i>专注</span>
+            <button class="btn-icon" type="button" title="设置专注时长" @click="wb.goto('study')">
+              <img :src="asset('assets/icons/sliders-horizontal.svg')" alt="" />
             </button>
           </div>
-        </div>
-      </form>
-
-      <!-- 紧凑状态条：数字先于装饰 -->
-      <section class="stat-strip" aria-label="今日概览">
-        <component
-          :is="kpi.run ? 'button' : 'div'"
-          v-for="kpi in kpis"
-          :key="kpi.id"
-          class="stat"
-          :class="{ 'is-quiet': kpi.quiet }"
-          :type="kpi.run ? 'button' : undefined"
-          :data-widget="kpi.id === 'water' || kpi.id === 'steps' ? 'quick' : kpi.id === 'off' ? 'work' : undefined"
-          @click="kpi.run?.()"
-        >
-          <span class="stat-head">
-            <img :src="asset(`assets/icons/${kpi.icon}.svg`)" alt="" />
-            <span>{{ kpi.label }}</span>
+          <div class="focus-dial" :style="{ '--p': wb.focusProgressPct.value }">
+            <div class="focus-dial-inner">
+              <p class="focus-clock numeric">{{ wb.focusClockText.value }}</p>
+              <small>FOCUS</small>
+            </div>
+          </div>
+          <div class="focus-row">
             <button
-              v-if="kpi.action"
-              class="stat-action"
+              class="focus-play"
               type="button"
-              :aria-label="`记录${kpi.label}`"
-              @click.stop="kpi.action.run()"
-            >{{ kpi.action.label }}</button>
-          </span>
-          <span class="stat-body">
-            <ProgressRing v-if="kpi.ring !== undefined" :percent="kpi.ring" :tone="kpi.toneRing || 'brand'" :size="30" />
-            <span class="stat-value numeric">
-              <AnimatedNumber v-if="typeof kpi.value === 'number'" :value="kpi.value" />
-              <b v-else>{{ kpi.value }}</b>
-              <em v-if="kpi.unit">{{ kpi.unit }}</em>
-            </span>
-          </span>
-          <span v-if="kpi.progress !== null && kpi.progress !== undefined" class="stat-track"><i :style="{ transform: `scaleX(${kpi.progress / 100})` }"></i></span>
-          <span class="stat-sub">{{ kpi.sub }}</span>
-        </component>
-      </section>
-    </section>
-    <!-- 模块工具条 -->
-    <div class="blocks-bar">
-      <p class="blocks-hint">
-        <img :src="asset('assets/icons/layout-dashboard.svg')" alt="" />
-        模块积木 · 可拖拽排序、切换宽窄、在设置中显隐
-      </p>
-      <div class="blocks-actions">
-        <button class="btn btn-ghost btn-sm" type="button" @click="wb.layoutEditing.value = !wb.layoutEditing.value">
-          <img :src="asset('assets/icons/sliders-horizontal.svg')" alt="" />
-          {{ wb.layoutEditing.value ? '完成编辑' : '自定义布局' }}
-        </button>
-        <button v-if="wb.layoutEditing.value" class="btn btn-ghost btn-sm" type="button" @click="wb.resetBlocks()">恢复默认</button>
-      </div>
-    </div>
+              :aria-label="wb.state.focus.running ? '暂停专注' : '开始专注'"
+              @click="toggleFocus"
+            >
+              <img :src="asset(`assets/icons/${wb.state.focus.running ? 'pause' : 'play'}.svg`)" alt="" />
+            </button>
+            <span class="focus-label">{{ wb.linkedFocusTask.value?.text || wb.state.focus.text || '选择任务，或写下这段要做的事' }}</span>
+          </div>
+          <div class="focus-track"><i :style="{ transform: `scaleX(${wb.focusProgressPct.value / 100})` }"></i></div>
+          <button class="btn btn-text btn-sm focus-more-link" type="button" @click="wb.goto('study')">打开专注页</button>
+        </article>
 
-    <!-- 积木网格 -->
-    <section class="blocks" :class="{ 'is-editing': wb.layoutEditing.value }">
+        <article class="panel glass rim pulse-card">
+          <p class="pulse-kicker">工作日 · {{ wb.offWorkStatus.value.kicker }}</p>
+          <strong class="pulse-clock numeric">{{ wb.offWorkStatus.value.value }}</strong>
+          <p class="pulse-sub">{{ wb.offWorkStatus.value.sub }}</p>
+          <div class="pulse-actions">
+            <button class="btn btn-soft btn-sm" type="button" @click="wb.breakOpen.value = true">休息一下</button>
+            <button class="btn btn-primary btn-sm" type="button" @click="wb.goto('standup')">写日报</button>
+          </div>
+        </article>
+      </aside>
+    </section>
+    <section class="blocks">
       <div
-        v-for="block in visibleBlocks"
+        v-for="block in wb.blocks.value"
         :key="block.id"
         class="block"
-        :class="[
-          `span-${block.span}`,
-          `block-${block.id}`,
-          { 'is-dragging': dragId === block.id, 'is-drop': dropId === block.id && dragId !== block.id }
-        ]"
-        :draggable="wb.layoutEditing.value"
-        @dragstart="onDragStart(block.id, $event)"
-        @dragover="onDragOver(block.id, $event)"
-        @drop.prevent="onDrop(block.id)"
-        @dragend="onDragEnd"
-      >
-        <div v-if="wb.layoutEditing.value" class="block-tools">
-          <span class="drag-handle" title="拖拽排序">
-            <img :src="asset('assets/icons/arrow-down-up.svg')" alt="" />拖拽
-          </span>
-          <button class="btn btn-ghost btn-sm" type="button" @click="wb.moveBlock(block.id, -1)" aria-label="前移">↑</button>
-          <button class="btn btn-ghost btn-sm" type="button" @click="wb.moveBlock(block.id, 1)" aria-label="后移">↓</button>
-          <button class="btn btn-ghost btn-sm" type="button" @click="wb.toggleBlockSpan(block.id)">
-            {{ block.span === 4 ? '加宽' : block.span === 8 ? '全宽' : '缩小' }}
-          </button>
-        </div>
-
-        <!-- 今日任务 -->
+        :class="[`span-${block.span}`, `block-${block.id}`]"
+      >        <!-- 今日任务 -->
         <section v-if="block.id === 'tasks'" class="panel glass rim card">
           <div class="panel-head">
             <h2 class="panel-title">
@@ -419,32 +295,6 @@ function taskTime(task) {
               查看其余 {{ todayTasks.length - agendaLimit }} 项
             </button>
           </footer>
-        </section>
-
-        <!-- 专注 -->
-        <section v-else-if="block.id === 'focus'" class="panel glass rim card focus-card">
-          <div class="panel-head">
-            <span class="focus-kicker"><i aria-hidden="true"></i>专注</span>
-            <button class="btn-icon" type="button" title="设置专注时长" @click="wb.goto('study')">
-              <img :src="asset('assets/icons/sliders-horizontal.svg')" alt="" />
-            </button>
-          </div>
-          <p class="focus-clock numeric">{{ wb.focusClockText.value }}</p>
-          <div class="focus-row">
-            <button
-              class="focus-play"
-              type="button"
-              :aria-label="wb.state.focus.running ? '暂停专注' : '开始专注'"
-              @click="toggleFocus"
-            >
-              <img :src="asset(`assets/icons/${wb.state.focus.running ? 'pause' : 'play'}.svg`)" alt="" />
-            </button>
-            <span class="focus-label">{{ wb.linkedFocusTask.value?.text || wb.state.focus.text || '选择任务，或写下这段要做的事' }}</span>
-          </div>
-          <div class="focus-track"><i :style="{ transform: `scaleX(${wb.focusProgressPct.value / 100})` }"></i></div>
-          <button class="btn btn-text btn-sm focus-more-link" type="button" @click="wb.goto('study')">
-            打开专注页
-          </button>
         </section>
 
         <!-- 接下来 -->
@@ -928,6 +778,158 @@ button.stat { cursor: pointer; }
 .stat-track i { display: block; width: 100%; height: 100%; border-radius: 99px; background: var(--brand); transform-origin: left center; transition: transform var(--motion-slow) var(--ease-out); }
 .stat-sub { font-size: var(--text-2xs); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .stat.is-quiet .stat-value b { font-size: var(--text-lg); font-weight: 700; color: var(--ink-soft); }
+/* ========== 新一代工作台视觉 ========== */
+.hero { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(290px, .72fr); gap: 16px; }
+.hero-main {
+  position: relative; display: flex; flex-direction: column; min-height: 0;
+  padding: 34px 36px 26px; overflow: hidden; border-radius: 28px;
+}
+.hero-main::after {
+  content: ""; position: absolute; inset: auto -10% -45% 35%; height: 420px; pointer-events: none;
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--brand) 26%, transparent), transparent 72%);
+  filter: blur(10px);
+}
+.hero-kicker { display: flex; align-items: center; gap: 9px; font-size: 12px; font-weight: 600; letter-spacing: .08em; color: var(--muted); text-transform: uppercase; }
+.live-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--brand); box-shadow: 0 0 0 4px color-mix(in srgb, var(--brand) 14%, transparent); }
+.dot-sep { opacity: .4; }
+.hero-title { margin: 28px 0 12px; font-family: var(--font-display); font-size: clamp(42px, 4.4vw, 64px); font-weight: 600; line-height: 1.02; letter-spacing: -.045em; }
+.hero-title span { display: block; margin-top: 8px; font-size: .62em; font-weight: 500; letter-spacing: -.03em; color: var(--muted); }
+.hero-brief { display: flex; gap: 30px; margin-top: 22px; max-width: 72%; }
+.hero-brief > div { min-width: 0; padding-left: 14px; border-left: 1px solid rgb(255 255 255 / .16); display: flex; flex-direction: column; gap: 3px; }
+.hero-brief span { font-size: 11px; letter-spacing: .12em; color: rgb(235 247 238 / .45); }
+.hero-brief strong { max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 550; color: #eef7ee; }
+.hero-sub { max-width: 48ch; color: var(--muted); font-size: 13.5px; line-height: 1.7; }
+.hero-sub b { color: var(--coral); }
+.hero-capture {
+  display: flex; align-items: center; gap: 7px; margin-top: 26px; padding: 7px 7px 7px 14px;
+  border: 1px solid var(--line); border-radius: 16px;
+  background: color-mix(in srgb, var(--surface) 66%, transparent);
+  backdrop-filter: blur(14px) saturate(150%); -webkit-backdrop-filter: blur(14px) saturate(150%);
+}
+.hero-capture > img { width: 17px; height: 17px; flex: 0 0 17px; opacity: .48; }
+.hero-input { flex: 1; min-width: 0; height: 38px; border: 0; background: transparent; outline: none; font-size: 13.5px; }
+.hero-detail { flex: 0 0 auto; }
+.hero-meta { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-top: 21px; padding-top: 17px; border-top: 1px solid var(--line); }
+.hero-meta > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.hero-meta span { font-size: 11.5px; color: var(--muted); letter-spacing: .04em; }
+.hero-meta strong { font-size: 25px; font-weight: 750; letter-spacing: -.035em; line-height: 1.1; }
+.hero-meta strong.warn { color: var(--coral); }
+.hero-meta em { margin-left: 2px; font-size: 11px; font-style: normal; font-weight: 500; color: var(--muted); }
+.hero-side { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.focus-hero { display: flex; flex-direction: column; gap: 6px; padding: 24px; flex: 1; min-height: 0; }
+.focus-hero .focus-clock { font-size: clamp(44px, 4.4vw, 64px); }
+.focus-hero .focus-row { margin-top: 2px; }
+.focus-hero .focus-more-link { align-self: flex-start; margin-top: auto; padding-left: 0; }
+.pulse-card { padding: 20px 24px 22px; }
+.pulse-kicker { font-size: 11.5px; font-weight: 650; letter-spacing: .06em; color: var(--muted); text-transform: uppercase; }
+.pulse-clock { display: block; margin: 6px 0 2px; font-size: 30px; font-weight: 750; letter-spacing: -.035em; line-height: 1.15; }
+.pulse-sub { font-size: 12.5px; color: var(--muted); line-height: 1.5; }
+.pulse-actions { display: flex; gap: 8px; margin-top: 14px; }
+.pulse-actions .btn { flex: 1; }
+.blocks { align-items: stretch; gap: 16px; }
+.block { transition: none; }
+.block > .panel { height: 100%; }
+.blocks .span-4 { grid-column: span 4; }
+.blocks .span-8 { grid-column: span 8; }
+@media (max-width: 1100px) {
+  .hero { grid-template-columns: 1fr; }
+  .hero-side { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .hero-main { min-height: 360px; }
+}
+@media (prefers-reduced-motion: reduce) { .hero-main::before { animation: none; } }
+
+@media (max-width: 760px) {
+  .hero-main { min-height: 0; padding: 24px 22px 20px; border-radius: 22px; }
+  .hero-title { margin-top: 20px; font-size: 40px; }
+  .hero-title span { font-size: .56em; }
+  .hero-capture { flex-wrap: wrap; padding: 7px; }
+  .hero-input { flex-basis: calc(100% - 26px); height: 34px; }
+  .hero-capture .btn-primary { flex: 1; }
+  .hero-detail { flex: 0 0 auto; }
+  .hero-meta { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 16px; }
+  .hero-meta strong { font-size: 22px; }
+  .hero-side { grid-template-columns: 1fr; }
+  .focus-hero { min-height: 260px; }
+  .blocks { gap: 12px; }
+}
+/* ---- 深度视觉层：暗色主视觉 + 光晕 + 专注表盘 ---- */
+@keyframes hero-glow {
+  from { transform: translate3d(-3%, -2%, 0) scale(.96); opacity: .75; }
+  to { transform: translate3d(4%, 3%, 0) scale(1.08); opacity: 1; }
+}
+
+.hero-main.panel.glass {
+  background:
+    radial-gradient(ellipse 60% 80% at 82% 0%, rgb(184 215 133 / .20), transparent 60%),
+    linear-gradient(135deg, rgb(8 30 24 / .97), rgb(14 47 38 / .93) 55%, rgb(22 67 53 / .88));
+  color: #eef7ee;
+  border-color: rgb(184 215 133 / .20);
+  box-shadow: 0 40px 90px -52px rgb(3 22 16 / .9), inset 0 1px 0 rgb(255 255 255 / .16);
+  backdrop-filter: blur(24px) saturate(135%); -webkit-backdrop-filter: blur(24px) saturate(135%);
+}
+.hero-main::before {
+  content: ""; position: absolute; width: 380px; height: 380px; right: 4%; top: -28%;
+  background: radial-gradient(circle, rgb(184 215 133 / .22), transparent 66%);
+  filter: blur(14px); pointer-events: none;
+  animation: hero-glow 16s ease-in-out infinite alternate;
+}
+.hero-main::after {
+  background: radial-gradient(closest-side, rgb(184 215 133 / .18), transparent 70%);
+}
+.hero-kicker, .hero-sub { color: rgb(235 247 238 / .62); }
+.hero-kicker { position: relative; z-index: 1; }
+.hero-title { position: relative; z-index: 1; max-width: 62%; color: #f4faf3; }
+.hero-title span { color: #c9e6b8; }
+.hero-sub b { color: #d7f0a8; }
+.hero-capture {
+  position: relative; z-index: 1; border-color: rgb(255 255 255 / .16);
+  background: rgb(255 255 255 / .08);
+  backdrop-filter: blur(16px) saturate(140%); -webkit-backdrop-filter: blur(16px) saturate(140%);
+}
+.hero-capture > img { opacity: .7; filter: brightness(0) invert(1); }
+.hero-input { color: #f4faf3; }
+.hero-input::placeholder { color: rgb(235 247 238 / .44); }
+.hero-capture .btn-primary { background: #d4efa9; border-color: #d4efa9; color: #102a20; }
+.hero-capture .btn-primary:hover:not(:disabled) { background: #e3f7c2; border-color: #e3f7c2; }
+.hero-capture .btn-ghost { color: rgb(235 247 238 / .76); }
+.hero-meta { position: relative; z-index: 1; border-color: rgb(255 255 255 / .14); }
+.hero-meta span, .hero-meta em { color: rgb(235 247 238 / .52); }
+.hero-meta strong { color: #f4faf3; }
+.hero-meta strong.warn { color: #f0b7a4; }
+.hero-now { position: absolute; right: 34px; top: 98px; z-index: 1; display: flex; flex-direction: column; align-items: flex-end; gap: 2px; text-align: right; }
+.hero-now::after {
+  content: ""; position: absolute; right: -18px; top: -34px; width: 150px; height: 150px;
+  border: 1px solid rgb(184 215 133 / .18); border-radius: 50%; pointer-events: none;
+}
+.hero-now-label { font-size: 11px; letter-spacing: .26em; color: rgb(235 247 238 / .42); }
+.hero-now-time { font-size: clamp(48px, 4.4vw, 68px); font-weight: 600; letter-spacing: -.06em; line-height: 1; color: #f4faf3; }
+.hero-now small { max-width: 170px; font-size: 11px; line-height: 1.45; color: rgb(235 247 238 / .52); }
+.focus-dial {
+  width: 174px; height: 174px; margin: 10px auto 2px; padding: 5px; border-radius: 50%;
+  display: grid; place-items: center;
+  background: conic-gradient(var(--brand) calc(var(--p, 0) * 1%), color-mix(in srgb, var(--line) 72%, transparent) 0);
+  box-shadow: 0 12px 40px -22px color-mix(in srgb, var(--brand) 60%, transparent);
+}
+.focus-dial-inner { width: 100%; height: 100%; border-radius: 50%; display: grid; place-items: center; align-content: center; background: color-mix(in srgb, var(--surface) 42%, transparent); border: 1px solid rgb(255 255 255 / .38); }
+.focus-hero .focus-clock { margin: 0; font-size: 44px; line-height: 1; }
+.focus-dial small { margin-top: 5px; font-size: 11px; letter-spacing: .2em; color: var(--muted); }
+@media (hover: hover) {
+  .panel.glass { transition: transform .35s var(--ease-out), box-shadow .35s var(--ease-out), border-color .35s var(--ease-out); }
+  .panel.glass:hover { transform: translateY(-2px); border-color: color-mix(in srgb, var(--brand) 26%, var(--line-strong)); box-shadow: 0 28px 70px -38px rgb(9 40 30 / .42), inset 0 1px 0 rgb(255 255 255 / .6); }
+  .focus-hero:hover, .pulse-card:hover { transform: translateY(-2px); }
+}
+@media (max-width: 1100px) {
+  .hero-now { right: 28px; top: 40px; }
+  .hero-title { max-width: 70%; }
+}
+@media (prefers-reduced-motion: reduce) { .hero-main::before { animation: none; } }
+
+@media (max-width: 760px) {
+  .hero-now { display: none; }
+  .hero-title { max-width: 100%; }
+  .focus-dial { width: 148px; height: 148px; }
+  .focus-hero .focus-clock { font-size: 38px; }
+}
 /* 响应式 */
 @media (max-width: 1280px) {
   .kpi-strip { grid-template-columns: repeat(4, minmax(0, 1fr)); }

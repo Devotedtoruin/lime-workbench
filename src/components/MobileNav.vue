@@ -7,9 +7,9 @@ const wb = useWorkbench();
 
 const items = [
   { id: 'home', label: '今天', icon: 'sun-medium' },
-  { id: 'todo', label: '计划', icon: 'list-checks' },
+  { id: 'todo', label: '任务', icon: 'list-checks' },
   { id: 'study', label: '专注', icon: 'timer' },
-  { id: 'calendar', label: '日历', icon: 'calendar-days' }
+  { id: 'standup', label: '日报', icon: 'clipboard-list' }
 ];
 const moreActive = computed(() => !items.some(item => item.id === wb.currentPage.value));
 </script>

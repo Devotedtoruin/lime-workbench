@@ -8,9 +8,11 @@ import TaskDialog from './components/TaskDialog.vue';
 import LedgerDialog from './components/LedgerDialog.vue';
 import NotificationCenter from './components/NotificationCenter.vue';
 import MobileNav from './components/MobileNav.vue';
+import BreakOverlay from './components/BreakOverlay.vue';
 import HomeView from './views/HomeView.vue';
 import TodoView from './views/TodoView.vue';
 import StudyView from './views/StudyView.vue';
+import StandupView from './views/StandupView.vue';
 import CalendarView from './views/CalendarView.vue';
 import LedgerView from './views/LedgerView.vue';
 import HabitsView from './views/HabitsView.vue';
@@ -33,6 +35,7 @@ const views = {
   home: HomeView,
   todo: TodoView,
   study: StudyView,
+  standup: StandupView,
   calendar: CalendarView,
   ledger: LedgerView,
   habits: HabitsView,
@@ -69,7 +72,7 @@ function onKeydown(event) {
   }
   if (typing || mod || event.altKey) return;
   const modalOpen = commandOpen.value || notificationsOpen.value ||
-    taskDialog.value.open || shortcutsOpen.value;
+    taskDialog.value.open || shortcutsOpen.value || wb.breakOpen.value;
   if (modalOpen) return;
   if (event.key === '?') {
     event.preventDefault();
@@ -80,6 +83,12 @@ function onKeydown(event) {
   } else if (event.key === 'f' || event.key === 'F') {
     event.preventDefault();
     wb.goto('study');
+  } else if (event.key === 'r' || event.key === 'R') {
+    event.preventDefault();
+    wb.breakOpen.value = true;
+  } else if (event.key === 'd' || event.key === 'D') {
+    event.preventDefault();
+    wb.goto('standup');
   }
 }
 
@@ -117,6 +126,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKeydown));
   </div>
 
   <MobileNav />
+  <BreakOverlay />
 
   <CommandPalette v-model:open="commandOpen" @new-task="openTask" />
   <TaskDialog v-model:open="taskDialog.open" :task="taskDialog.task" />
@@ -133,6 +143,8 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKeydown));
         <div><dt><kbd>Ctrl</kbd><kbd>K</kbd></dt><dd>打开快捷命令 / 搜索</dd></div>
         <div><dt><kbd>N</kbd></dt><dd>新建任务</dd></div>
         <div><dt><kbd>F</kbd></dt><dd>打开专注</dd></div>
+        <div><dt><kbd>D</kbd></dt><dd>写日报 / 站会稿</dd></div>
+        <div><dt><kbd>R</kbd></dt><dd>休息一下</dd></div>
         <div><dt><kbd>?</kbd></dt><dd>显示这份快捷键</dd></div>
         <div><dt><kbd>Esc</kbd></dt><dd>关闭当前弹层</dd></div>
       </dl>

@@ -9,7 +9,7 @@
 // Opt out entirely for coarse pointers (touch) and reduced-motion users: on touch
 // there is no hover to track, and the effect is decorative.
 
-const SPOT_SELECTOR = '.spot';
+const SPOT_SELECTOR = '.spot, .panel.glass';
 
 export function initSpotlight() {
   if (typeof window === 'undefined' || !window.matchMedia) return;

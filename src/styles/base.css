@@ -10,6 +10,7 @@
   --font-ui: "Segoe UI Variable Text", "Segoe UI", -apple-system, BlinkMacSystemFont,
     "PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
   --font-numeric: "Bahnschrift", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  --font-display: "Songti SC", "STSong", "Noto Serif CJK SC", "SimSun", serif;
 
   /* 文字三级：muted 按「玻璃最低 45% 不透明度 + 最饱和预设」校准到 ≥4.5:1 */
   --ink: #0f172a;
@@ -163,7 +164,7 @@
 [data-theme="dark"][data-accent="graphite"] { --brand: #bccbd6; --brand-deep: #dee7ef; --brand-pale: #2d3741; --cta-bg: #536473; --cta-bg-hover: #65798b; }
 
 /* ---------- 桌面主题预设 ---------- */
-[data-preset="aurora"] { --scene-base: #eef5f4; --scene-a: rgba(120, 205, 190, .44); --scene-b: rgba(120, 205, 190, .24); --scene-c: transparent; --scene-d: transparent; }
+[data-preset="aurora"] { --scene-base: #e6f2ef; --scene-a: rgba(92, 196, 178, .68); --scene-b: rgba(174, 213, 120, .46); --scene-c: rgba(135, 170, 220, .50); --scene-d: rgba(92, 196, 178, .34); }
 [data-preset="mint"] { --scene-base: #e7efea; --scene-a: rgba(96, 198, 158, .78); --scene-b: rgba(133, 205, 199, .74); --scene-c: rgba(226, 219, 152, .52); --scene-d: rgba(170, 214, 176, .6); }
 [data-preset="sunset"] { --scene-base: #f0e7e4; --scene-a: rgba(239, 168, 122, .78); --scene-b: rgba(180, 143, 205, .72); --scene-c: rgba(239, 200, 145, .62); --scene-d: rgba(238, 150, 160, .5); }
 [data-preset="plain"] { --scene-base: var(--bg); --scene-a: transparent; --scene-b: transparent; --scene-c: transparent; --scene-d: transparent; }
@@ -173,7 +174,7 @@
 [data-preset="twilight"] { --scene-base: #eae7f3; --scene-a: rgba(156, 132, 205, .62); --scene-b: rgba(112, 148, 199, .64); --scene-c: rgba(210, 165, 198, .5); --scene-d: rgba(178, 140, 210, .48); }
 /* Aurora is the default preset; without an explicit dark variant its light scene values
    override the dark-theme defaults below and leave the page on a pale background. */
-[data-theme="dark"][data-preset="aurora"] { --scene-base: #0b1729; --scene-a: rgba(26, 122, 122, .36); --scene-b: rgba(26, 122, 122, .18); --scene-c: transparent; --scene-d: transparent; }
+[data-theme="dark"][data-preset="aurora"] { --scene-base: #081421; --scene-a: rgba(31, 143, 133, .56); --scene-b: rgba(52, 96, 170, .46); --scene-c: rgba(143, 186, 92, .20); --scene-d: rgba(31, 143, 133, .26); }
 [data-theme="dark"][data-preset="ocean"] { --scene-base: #102332; --scene-a: rgba(27, 130, 150, .68); --scene-b: rgba(50, 86, 160, .64); --scene-c: rgba(45, 122, 134, .48); --scene-d: rgba(30, 120, 100, .5); }
 [data-theme="dark"][data-preset="paper"] { --scene-base: #23231f; --scene-a: rgba(110, 100, 72, .4); --scene-b: rgba(88, 84, 70, .38); --scene-c: rgba(108, 102, 82, .3); --scene-d: rgba(96, 92, 76, .34); }
 [data-theme="dark"][data-preset="forest"] { --scene-base: #16271d; --scene-a: rgba(58, 128, 68, .68); --scene-b: rgba(74, 122, 80, .62); --scene-c: rgba(120, 118, 58, .38); --scene-d: rgba(48, 116, 92, .55); }
