@@ -2,9 +2,9 @@
 import { DEFAULT_SETTINGS } from './core.js';
 import { HABIT_LIMITS } from './habits.js';
 
-export const CURRENT_STATE_VERSION = 5;
+export const CURRENT_STATE_VERSION = 6;
 export const STATE_VERSION = CURRENT_STATE_VERSION;
-export const SUPPORTED_STATE_VERSIONS = Object.freeze([1, 2, 3, 4, 5]);
+export const SUPPORTED_STATE_VERSIONS = Object.freeze([1, 2, 3, 4, 5, 6]);
 export const MAX_BACKUP_CHARS = 2_000_000;
 
 // The same bounds apply to live input and backup validation (lengths are UTF-16 code units).
@@ -205,7 +205,7 @@ function workTemplate(value, ctx, path) {
   const breakStart = required(obj, 'breakStart', pattern(TIME_RE), ctx, path);
   const breakEnd = required(obj, 'breakEnd', pattern(TIME_RE), ctx, path);
   if ([id, name, onTime, offTime, breakStart, breakEnd].includes(BAD)) return BAD;
-  if (offTime <= onTime || breakEnd <= breakStart || breakStart < onTime || breakEnd > offTime) return invalid(ctx, path);
+  if (onTime === offTime) return invalid(ctx, path);
   return { id, name, onTime, offTime, breakStart, breakEnd };
 }
 
@@ -220,11 +220,11 @@ function workScheduleEntry(value, ctx, path) {
   const breakStart = required(obj, 'breakStart', pattern(TIME_RE), ctx, path);
   const breakEnd = required(obj, 'breakEnd', pattern(TIME_RE), ctx, path);
   if ([id, date, onTime, offTime, breakStart, breakEnd].includes(BAD)) return BAD;
-  if (offTime <= onTime || breakEnd <= breakStart || breakStart < onTime || breakEnd > offTime) return invalid(ctx, path);
+  if (onTime === offTime) return invalid(ctx, path);
   return { id, date, onTime, offTime, breakStart, breakEnd };
 }
 
-const LEDGER_TEMPLATE_KEYS = ['id', 'name', 'type', 'amount', 'cat', 'note', 'frequency', 'dayOfMonth', 'enabled'];
+const LEDGER_TEMPLATE_KEYS = ['id', 'name', 'type', 'amount', 'cat', 'note', 'frequency', 'dayOfMonth', 'enabled', 'lastPosted'];
 function ledgerTemplate(value, ctx, path) {
   const obj = record(value, LEDGER_TEMPLATE_KEYS, ctx, path);
   if (obj === BAD) return BAD;
@@ -237,8 +237,9 @@ function ledgerTemplate(value, ctx, path) {
   const frequency = required(obj, 'frequency', choice(['daily', 'weekday', 'monthly', 'manual']), ctx, path);
   const dayOfMonth = required(obj, 'dayOfMonth', number(1, 31, true), ctx, path);
   const enabled = required(obj, 'enabled', bool, ctx, path);
+  const lastPosted = field(obj, 'lastPosted', value => value === '' ? '' : pattern(DATE_RE)(value, ctx, path), '', ctx, path);
   if ([id, name, type, amount, cat, note, frequency, dayOfMonth, enabled].includes(BAD)) return BAD;
-  return { id, name, type, amount, cat, note, frequency, dayOfMonth, enabled };
+  return { id, name, type, amount, cat, note, frequency, dayOfMonth, enabled, lastPosted };
 }
 
 function settings(value, ctx, path) {
@@ -704,7 +705,7 @@ function focus(value, ctx, path) {
 /**
  * Normalize an already-parsed state. Default: repair stored data by dropping malformed entries
  * and replacing invalid fields with defaults. { strict: true } rejects on the first invalid field.
- * Both modes migrate unversioned/version-1/version-2/version-3/version-4 states to the current version-5 shape.
+ * Both modes migrate unversioned/version-1/version-2/version-3/version-4 states to the current version-6 shape.
  */
 export function normalizeState(raw, { strict = false } = {}) {
   const ctx = { strict };

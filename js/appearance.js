@@ -16,7 +16,7 @@ const choices = {
   motion: ['system', 'play', 'paused'], cardStyle: ['glass', 'solid', 'hairline']
 };
 const legacyRanges = { opacity: [0.3, 1], backgroundBlur: [0, 24], panelBlur: [0, 24], radius: [8, 24] };
-const ranges = { ...legacyRanges, backgroundDim: [0, 0.8], fontScale: [0.9, 1.2] };
+const ranges = { ...legacyRanges, backgroundDim: [0, 0.8], fontScale: [0.9, 1.2], sceneIntensity: [0.35, 1.15] };
 const legacyKeys = ['version', ...Object.keys(legacyChoices), ...Object.keys(legacyRanges), 'backgroundImage', 'widgets'];
 const own = (obj, key) => Object.prototype.hasOwnProperty.call(obj, key);
 const plain = value => value !== null && typeof value === 'object' && !Array.isArray(value) &&
@@ -30,7 +30,7 @@ export function defaultAppearance() {
     backgroundBlur: 4, panelBlur: 14, radius: 12, density: 'compact',
     accent: 'green', font: 'system', backgroundImage: '',
     backgroundAssetId: '', fontAssetId: '', motion: 'system', cardStyle: 'glass',
-    backgroundDim: 0, fontScale: 1,
+    backgroundDim: 0, fontScale: 1, sceneIntensity: 0.8,
     widgets: Object.fromEntries(WIDGET_NAMES.map(name => [name, true]))
   };
 }
@@ -166,6 +166,7 @@ export function applyAppearance(config) {
   root.style.setProperty('--background-blur', `${safe.backgroundBlur}px`);
   root.style.setProperty('--panel-radius', `${safe.radius}px`);
   root.style.setProperty('--background-dim', String(safe.backgroundDim));
+  root.style.setProperty('--scene-strength', String(safe.sceneIntensity));
   root.style.setProperty('--font-scale', String(safe.fontScale));
   for (const element of [root, doc.body].filter(Boolean)) {
     for (const key of ['density', 'accent', 'font', 'preset', 'cardStyle', 'motion']) element.dataset[key] = safe[key];

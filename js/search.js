@@ -28,7 +28,7 @@ function clip(text, at = SNIPPET) {
 
 /**
  * @param {string} query raw user input
- * @param {object} state  the v5 business state
+ * @param {object} state  the v6 business state
  * @param {object} opts   { today: 'YYYY-MM-DD' }
  * @returns {{ kind: string, id: string, title: string, meta: string, page: string, action?: object }[]}
  */

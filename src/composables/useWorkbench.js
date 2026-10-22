@@ -304,45 +304,132 @@ export function useWorkbench() {
   const studyTodayMinutes = computed(() => Math.floor((state.study[todayStr.value] || 0) / 60));
   const studyPercent = computed(() => Math.min(100, Math.round(((state.study[todayStr.value] || 0) / 3600) * 100)));
 
+  function timeMinutes(value) {
+    const [h, m] = String(value || '').split(':').map(Number);
+    return Number.isFinite(h) && Number.isFinite(m) ? h * 60 + m : 0;
+  }
+  function scheduleFor(dateKey) {
+    return (state.settings.workSchedule || []).find(item => item.date === dateKey) || null;
+  }
   const todaySchedule = computed(() => {
-    const override = (state.settings.workSchedule || []).find(item => item.date === todayStr.value);
-    return override
-      ? { ...state.settings, ...override, scheduleOverride: true }
-      : { ...state.settings, scheduleOverride: false };
+    const today = state.settings.workSchedule || [];
+    const nowMinutes = nowDate.value.getHours() * 60 + nowDate.value.getMinutes();
+    const yesterday = new Date(nowDate.value);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const previous = scheduleFor(todayKey(yesterday));
+    const current = scheduleFor(todayStr.value);
+    // An overnight shift belongs to the date it starts. Early in the morning, yesterday's
+    // 22:00–06:00 schedule is still the active shift.
+    const usePrevious = !current && previous &&
+      timeMinutes(previous.offTime) <= timeMinutes(previous.onTime) &&
+      nowMinutes < timeMinutes(previous.onTime);
+    const active = current || (usePrevious ? previous : null);
+    return active
+      ? { ...state.settings, ...active, scheduleOverride: true, scheduleSource: current ? 'today' : 'previous' }
+      : { ...state.settings, scheduleOverride: false, scheduleSource: 'default' };
   });
 
-  function onDutyMinutes(settings, now) {
-    let minutes = workedMinutes(settings, now);
-    if (settings.breakStart && settings.breakEnd && settings.breakEnd > settings.breakStart) {
-      const breakStart = timeOnDate(settings.breakStart, now);
-      const breakEnd = timeOnDate(settings.breakEnd, now);
-      const elapsed = Math.max(0, Math.min(now, breakEnd) - breakStart) / 60000;
-      minutes -= Math.min(minutes, elapsed);
+  function shiftMetrics(settings, now, source = 'default') {
+    const on = timeMinutes(settings.onTime);
+    const off = timeMinutes(settings.offTime);
+    const overnight = off <= on;
+    const day = new Date(now);
+    day.setHours(0, 0, 0, 0);
+    let start;
+    let end;
+    let active;
+    let done;
+    let before;
+    if (!overnight) {
+      start = new Date(day); start.setHours(on, 0, 0, 0);
+      end = new Date(day); end.setHours(off, 0, 0, 0);
+      active = now >= start && now < end;
+      done = now >= end;
+      before = now < start;
+    } else {
+      const todayOn = new Date(day); todayOn.setHours(on, 0, 0, 0);
+      const todayOff = new Date(day); todayOff.setHours(off, 0, 0, 0);
+      const nowMinutes = now.getHours() * 60 + now.getMinutes();
+      if (nowMinutes < off) {
+        if (source === 'today') {
+          start = todayOn;
+          end = new Date(todayOff); end.setDate(end.getDate() + 1);
+          active = false;
+          before = true;
+        } else {
+          start = new Date(todayOn); start.setDate(start.getDate() - 1);
+          end = todayOff;
+          active = true;
+        }
+      } else if (nowMinutes >= on) {
+        start = todayOn;
+        end = new Date(todayOff); end.setDate(end.getDate() + 1);
+        active = true;
+      } else {
+        if (source === 'previous') {
+          // The night shift already ended; keep the previous shift for the on-duty total.
+          start = new Date(todayOn); start.setDate(start.getDate() - 1);
+          end = todayOff;
+          active = false;
+        } else {
+          // A night shift scheduled for today has not started yet.
+          start = todayOn;
+          end = new Date(todayOff); end.setDate(end.getDate() + 1);
+          active = false;
+          before = true;
+        }
+      }
+      done = !active && !before;
     }
-    return Math.max(0, Math.round(minutes));
+    const total = Math.max(0, (end - start) / 60000);
+    const elapsed = before ? 0 : Math.max(0, Math.min(now, end) - start) / 60000;
+    let breakMinutes = 0;
+    const breakOn = timeMinutes(settings.breakStart);
+    const breakOff = timeMinutes(settings.breakEnd);
+    if (settings.breakStart && settings.breakEnd) {
+      const breakStart = new Date(start);
+      breakStart.setHours(breakOn, 0, 0, 0);
+      if (breakOn < on) breakStart.setDate(breakStart.getDate() + 1);
+      const breakEnd = new Date(breakStart);
+      breakEnd.setHours(breakOff, 0, 0, 0);
+      if (breakEnd <= breakStart) breakEnd.setDate(breakEnd.getDate() + 1);
+      breakMinutes = Math.max(0, (Math.min(now, end, breakEnd) - Math.max(start, breakStart)) / 60000);
+      if (before) breakMinutes = 0;
+    }
+    const worked = Math.max(0, Math.round(Math.min(total, elapsed) - Math.min(breakMinutes, elapsed)));
+    const percent = total > 0 ? Math.max(0, Math.min(100, Math.round((worked / total) * 100))) : 0;
+    const remaining = Math.max(0, Math.floor((end - now) / 1000));
+    return {
+      start, end, active, done, before, total, worked, percent, remaining,
+      overnight,
+      range: `${settings.onTime}–${settings.offTime}${overnight ? '（跨夜）' : ''}`,
+      clock: remaining >= 3600
+        ? `${Math.floor(remaining / 3600)}:${pad(Math.floor((remaining % 3600) / 60))}:${pad(remaining % 60)}`
+        : `${pad(Math.floor(remaining / 60))}:${pad(remaining % 60)}`
+    };
   }
+
+  const todayShift = computed(() => shiftMetrics(todaySchedule.value, nowDate.value, todaySchedule.value.scheduleSource));
 
   const offWorkStatus = computed(() => {
     const s = todaySchedule.value;
     const now = nowDate.value;
     const isRest = !s.scheduleOverride && s.restDays.includes(now.getDay());
-    const { done, hours, minutes, seconds } = offCountdown(s, now);
-    const beforeWork = !isRest && now < timeOnDate(s.onTime, now);
+    const metrics = todayShift.value;
     const breakText = s.breakStart && s.breakEnd ? ` · 午休 ${s.breakStart}–${s.breakEnd}` : '';
     if (isRest) {
       return { kicker: '今天休息', value: '周末愉快', sub: `默认班次 ${s.onTime}–${s.offTime}`, quiet: true };
     }
-    if (beforeWork) {
-      return { kicker: '待上班', value: `${s.onTime} 上班`, sub: `今日工作时段 ${s.onTime}–${s.offTime}${breakText}`, quiet: true };
+    if (metrics.before) {
+      return { kicker: '待上班', value: `${s.onTime} 上班`, sub: `今日工作时段 ${metrics.range}${breakText}`, quiet: true };
     }
-    if (done) {
-      return { kicker: '已经下班', value: '下班啦', sub: `今日在岗 ${onDutyMinutes(s, now)} 分钟`, quiet: true };
+    if (metrics.done) {
+      return { kicker: '已经下班', value: '下班啦', sub: `今日在岗 ${metrics.worked} 分钟${metrics.overnight ? '（跨夜）' : ''}`, quiet: true };
     }
-    const clock = hours > 0 ? `${hours}:${pad(minutes)}:${pad(seconds)}` : `${pad(minutes)}:${pad(seconds)}`;
     return {
       kicker: '距离下班',
-      value: clock,
-      sub: `${s.onTime}–${s.offTime}${breakText} · 已在岗 ${onDutyMinutes(s, now)} 分钟`,
+      value: metrics.clock,
+      sub: `${metrics.range}${breakText} · 已在岗 ${metrics.worked} 分钟`,
       quiet: false
     };
   });
@@ -624,6 +711,21 @@ export function useWorkbench() {
     return true;
   }
 
+  function updateWorkTemplate(id, { name, onTime, offTime, breakStart, breakEnd }) {
+    const item = (state.settings.workTemplates || []).find(t => String(t.id) === String(id));
+    if (!item) return false;
+    const clean = String(name || '').trim();
+    const timeOk = value => /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(String(value));
+    if (!clean || !validateText(clean, TEXT_LIMITS.taskTag) || ![onTime, offTime, breakStart, breakEnd].every(timeOk) ||
+        onTime === offTime) {
+      showToast('班次模板内容无效'); return false;
+    }
+    Object.assign(item, { name: clean, onTime, offTime, breakStart, breakEnd });
+    if (!save()) return false;
+    showToast('班次模板已更新');
+    return true;
+  }
+
   function deleteWorkTemplate(id) {
     const list = state.settings.workTemplates || [];
     const idx = list.findIndex(item => String(item.id) === String(id));
@@ -636,7 +738,7 @@ export function useWorkbench() {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(String(date))) { showToast('请选择有效日期'); return false; }
     const timeOk = value => /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(String(value));
     if (![onTime, offTime, breakStart, breakEnd].every(timeOk)) { showToast('班次时间格式无效'); return false; }
-    if (offTime <= onTime) { showToast('下班时间需晚于上班时间'); return false; }
+    if (offTime === onTime) { showToast('上下班时间不能相同'); return false; }
     const list = state.settings.workSchedule || [];
     const idx = list.findIndex(item => item.date === date);
     const entry = { id: idx >= 0 ? list[idx].id : nextId(), date, onTime, offTime, breakStart, breakEnd };
@@ -670,11 +772,42 @@ export function useWorkbench() {
       id: nextId(), name: clean, type: type === 'income' ? 'income' : 'expense', amount: amt,
       cat: cat || CATEGORIES[0], note: String(note || '').trim() || clean,
       frequency: ['daily', 'weekday', 'monthly', 'manual'].includes(frequency) ? frequency : 'manual',
-      dayOfMonth: Math.min(31, Math.max(1, Number(dayOfMonth) || 1)), enabled: Boolean(enabled)
+      dayOfMonth: Math.min(31, Math.max(1, Number(dayOfMonth) || 1)), enabled: Boolean(enabled),
+      lastPosted: ''
     });
     if (!save()) return false;
     autoPostLedgerTemplates(true);
     showToast('固定账目模板已保存');
+    return true;
+  }
+
+  function updateLedgerTemplate(id, { name, type = 'expense', amount, cat = CATEGORIES[0], note = '', frequency = 'manual', dayOfMonth = 1, enabled = true }) {
+    const item = (state.settings.ledgerTemplates || []).find(t => String(t.id) === String(id));
+    if (!item) return false;
+    const clean = String(name || '').trim();
+    const amt = Math.abs(Number(amount) || 0);
+    if (!clean || !validateText(clean, TEXT_LIMITS.taskTag) || !amt || amt > 1_000_000) {
+      showToast('模板名称或金额无效'); return false;
+    }
+    Object.assign(item, {
+      name: clean, type: type === 'income' ? 'income' : 'expense', amount: amt,
+      cat: cat || CATEGORIES[0], note: String(note || '').trim() || clean,
+      frequency: ['daily', 'weekday', 'monthly', 'manual'].includes(frequency) ? frequency : 'manual',
+      dayOfMonth: Math.min(31, Math.max(1, Number(dayOfMonth) || 1)), enabled: Boolean(enabled)
+    });
+    if (!save()) return false;
+    autoPostLedgerTemplates(true);
+    showToast('固定账目模板已更新');
+    return true;
+  }
+
+  function toggleLedgerTemplate(id) {
+    const item = (state.settings.ledgerTemplates || []).find(t => String(t.id) === String(id));
+    if (!item) return false;
+    item.enabled = !item.enabled;
+    if (!save()) return false;
+    autoPostLedgerTemplates(true);
+    showToast(item.enabled ? '已启用自动记账' : '已暂停自动记账');
     return true;
   }
 
@@ -702,7 +835,10 @@ export function useWorkbench() {
     const weekday = new Date(year, month - 1, day).getDay();
     if (template.frequency === 'daily') return true;
     if (template.frequency === 'weekday') return weekday >= 1 && weekday <= 5;
-    if (template.frequency === 'monthly') return day === template.dayOfMonth;
+    if (template.frequency === 'monthly') {
+      const daysInMonth = new Date(year, month, 0).getDate();
+      return day === Math.min(template.dayOfMonth, daysInMonth);
+    }
     return false;
   }
 
@@ -710,16 +846,17 @@ export function useWorkbench() {
     const date = todayKey();
     let posted = 0;
     for (const template of state.settings.ledgerTemplates || []) {
-      if (!template.enabled || !templateMatchesToday(template, date)) continue;
+      if (!template.enabled || template.lastPosted === date || !templateMatchesToday(template, date)) continue;
       const duplicate = state.ledger.some(r => r.date === date &&
         Number(r.amount).toFixed(2) === Number(template.amount).toFixed(2) &&
         r.note === (template.note || template.name) && r.cat === template.cat);
-      if (duplicate) continue;
+      if (duplicate) { template.lastPosted = date; continue; }
       if (state.ledger.length >= COLLECTION_LIMITS.ledger) break;
       state.ledger.unshift({
         id: nextId(), type: template.type, amount: template.amount,
         note: template.note || template.name, cat: template.cat, date
       });
+      template.lastPosted = date;
       posted += 1;
     }
     if (posted) {
@@ -1273,7 +1410,9 @@ export function useWorkbench() {
     studyPercent,
     offWorkStatus,
     todaySchedule,
+    todayShift,
     addWorkTemplate,
+    updateWorkTemplate,
     deleteWorkTemplate,
     applyWorkSchedule,
     removeWorkSchedule,
@@ -1306,6 +1445,8 @@ export function useWorkbench() {
     addLedgerRecord,
     deleteLedgerRecord,
     addLedgerTemplate,
+    updateLedgerTemplate,
+    toggleLedgerTemplate,
     deleteLedgerTemplate,
     applyLedgerTemplate,
     autoPostLedgerTemplates,

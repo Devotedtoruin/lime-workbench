@@ -144,13 +144,13 @@ const work = reactive({
 function saveWork() {
   const on = work.onTime, off = work.offTime;
   const breakStart = work.breakStart, breakEnd = work.breakEnd;
-  if (!/^\d{2}:\d{2}$/.test(on) || !/^\d{2}:\d{2}$/.test(off) || off <= on) {
-    wb.showToast('下班时间需晚于上班时间（暂只支持同日班次）');
+  if (!/^\d{2}:\d{2}$/.test(on) || !/^\d{2}:\d{2}$/.test(off) || on === off) {
+    wb.showToast('请选择有效的上班与下班时间');
     return;
   }
   if (!/^\d{2}:\d{2}$/.test(breakStart) || !/^\d{2}:\d{2}$/.test(breakEnd) ||
-      breakEnd <= breakStart || breakStart < on || breakEnd > off) {
-    wb.showToast('午休时间需在班次内，且结束晚于开始');
+      breakStart === breakEnd) {
+    wb.showToast('请选择有效的午休时间');
     return;
   }
   const water = Number(work.waterGoal), steps = Number(work.stepGoal);
@@ -167,6 +167,7 @@ function dateOffset(days) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 const shiftDate = ref(dateOffset(1));
+const editingShiftId = ref(null);
 const shift = reactive({
   name: '',
   onTime: wb.state.settings.onTime || '09:00',
@@ -183,8 +184,28 @@ function dateLabel(key) {
   const [, month, day] = String(key).split('-');
   return `${Number(month)} 月 ${Number(day)} 日`;
 }
+function resetShiftForm() {
+  editingShiftId.value = null;
+  Object.assign(shift, {
+    name: '',
+    onTime: wb.state.settings.onTime || '09:00',
+    offTime: wb.state.settings.offTime || '18:00',
+    breakStart: wb.state.settings.breakStart || '12:00',
+    breakEnd: wb.state.settings.breakEnd || '13:00'
+  });
+}
+function editShift(t) {
+  editingShiftId.value = t.id;
+  Object.assign(shift, {
+    name: t.name, onTime: t.onTime, offTime: t.offTime,
+    breakStart: t.breakStart, breakEnd: t.breakEnd
+  });
+}
 function saveShiftTemplate() {
-  if (wb.addWorkTemplate({ ...shift })) shift.name = '';
+  const ok = editingShiftId.value
+    ? wb.updateWorkTemplate(editingShiftId.value, { ...shift })
+    : wb.addWorkTemplate({ ...shift });
+  if (ok) resetShiftForm();
 }
 function applyShift(template, date = shiftDate.value) {
   wb.applyWorkSchedule({
@@ -299,7 +320,7 @@ function clearData() {
           <small v-if="hasIdentityDraft">问候时称呼为「{{ identity.displayName.trim() || identity.avatar.trim() }}」· 侧边栏与顶栏都会显示这个头像</small>
           <small v-else>还没有设置称呼和头像，首页只显示通用问候；设置后会显示在侧边栏与顶栏。</small>
           <div class="identity-actions">
-            <label class="btn btn-soft btn-sm file-btn">
+            <label class="btn btn-soft btn-sm file-btn" tabindex="0" role="button" aria-label="选择头像图片" @keydown.enter.prevent="avatarInput?.click()" @keydown.space.prevent="avatarInput?.click()">
               <img :src="asset('assets/icons/upload.svg')" alt="" />
               {{ avatarBusy ? '处理中…' : '选择头像图片' }}
               <input ref="avatarInput" type="file" accept="image/png,image/jpeg,image/webp" hidden @change="pickAvatar" />
@@ -424,7 +445,23 @@ function clearData() {
         />
         <span class="slider-value numeric">{{ Math.round(wb.appearance.opacity * 100) }}%</span>
       </div>
-      <p class="tiny">只影响侧栏、顶栏与弹层。为保证正文可读，最低 45%；内容卡片使用实色底。</p>
+      <p class="tiny">只影响侧栏、顶栏与弹层。为保证正文可读，最低 45%；内容卡片可在「卡片质感」中切换玻璃 / 实色。</p>
+
+      <p class="group-label">背景色彩强度</p>
+      <div class="slider-row">
+        <input
+          class="range"
+          type="range"
+          min="35"
+          max="115"
+          step="5"
+          :value="Math.round(wb.appearance.sceneIntensity * 100)"
+          aria-label="背景色彩强度"
+          @input="wb.updateAppearance({ sceneIntensity: Number($event.target.value) / 100 })"
+        />
+        <span class="slider-value numeric">{{ Math.round(wb.appearance.sceneIntensity * 100) }}%</span>
+      </div>
+      <p class="tiny">觉得背景太深或太淡时调这里；它只改变极光/光斑浓度，不影响文字与卡片。</p>
 
       <p class="group-label">外壳虚化</p>
       <div class="slider-row">
@@ -447,7 +484,7 @@ function clearData() {
           <p class="tiny" style="margin: 0">选择本地图片作为桌面背景，只保存在本机，记录备份不包含。</p>
         </div>
         <div class="wallpaper-actions">
-          <label class="btn btn-soft btn-sm file-btn">
+          <label class="btn btn-soft btn-sm file-btn" tabindex="0" role="button" aria-label="选择壁纸" @keydown.enter.prevent="bgInput?.click()" @keydown.space.prevent="bgInput?.click()">
             <img :src="asset('assets/icons/upload.svg')" alt="" />
             {{ bgBusy ? '处理中…' : '选择壁纸' }}
             <input ref="bgInput" type="file" accept="image/png,image/jpeg,image/webp" hidden @change="pickBackground" />
@@ -480,7 +517,7 @@ function clearData() {
         <div class="shift-head">
           <div>
             <h3>排班模板</h3>
-            <p>适合轮班：保存早班 / 晚班 / 半天，点一下应用到明天或指定日期。</p>
+            <p>适合轮班：保存早班 / 晚班 / 半天，点一下应用到明天或指定日期；支持跨夜班次。</p>
           </div>
           <label class="field shift-date">
             <span>应用到日期</span>
@@ -492,11 +529,14 @@ function clearData() {
           <article v-for="t in wb.state.settings.workTemplates" :key="t.id" class="shift-row">
             <div class="shift-copy">
               <strong>{{ t.name }}</strong>
-              <small>{{ t.onTime }}–{{ t.offTime }} · 午休 {{ t.breakStart }}–{{ t.breakEnd }}</small>
+              <small>{{ t.onTime }}–{{ t.offTime }}{{ t.offTime <= t.onTime ? '（跨夜）' : '' }} · 午休 {{ t.breakStart }}–{{ t.breakEnd }}</small>
             </div>
             <div class="shift-actions">
               <button class="btn btn-soft btn-sm" type="button" @click="applyTomorrow(t)">明天</button>
               <button class="btn btn-soft btn-sm" type="button" @click="applyShift(t)">所选日期</button>
+              <button class="btn-icon" type="button" aria-label="编辑班次模板" @click="editShift(t)">
+                <img :src="asset('assets/icons/pencil.svg')" alt="" />
+              </button>
               <button class="btn-icon is-danger" type="button" aria-label="删除班次模板" @click="wb.deleteWorkTemplate(t.id)">
                 <img :src="asset('assets/icons/trash.svg')" alt="" />
               </button>
@@ -511,7 +551,8 @@ function clearData() {
           <label class="field"><span>下班</span><input v-model="shift.offTime" class="input" type="time" /></label>
           <label class="field"><span>午休开始</span><input v-model="shift.breakStart" class="input" type="time" /></label>
           <label class="field"><span>午休结束</span><input v-model="shift.breakEnd" class="input" type="time" /></label>
-          <button class="btn btn-soft" type="submit">保存为模板</button>
+          <button class="btn btn-soft" type="submit">{{ editingShiftId ? '更新模板' : '保存为模板' }}</button>
+          <button v-if="editingShiftId" class="btn btn-ghost" type="button" @click="resetShiftForm">取消</button>
         </form>
 
         <div v-if="upcomingSchedule.length" class="shift-upcoming">
@@ -581,7 +622,7 @@ function clearData() {
         <button class="btn btn-soft btn-sm" type="button" @click="wb.exportBackupData()">
           <img :src="asset('assets/icons/download.svg')" alt="" />导出备份
         </button>
-        <label class="btn btn-soft btn-sm file-btn">
+        <label class="btn btn-soft btn-sm file-btn" tabindex="0" role="button" aria-label="导入备份" @keydown.enter.prevent="importFile?.click()" @keydown.space.prevent="importFile?.click()">
           <img :src="asset('assets/icons/upload.svg')" alt="" />导入备份
           <input ref="importFile" type="file" accept="application/json" hidden @change="onImport" />
         </label>

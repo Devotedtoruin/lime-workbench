@@ -45,30 +45,30 @@ function legacyState() {
   };
 }
 
-test('schema version 5 explicitly supports v1-v4 without accepting future or coercible versions', () => {
-  assert.equal(CURRENT_STATE_VERSION, 5);
-  assert.deepEqual(SUPPORTED_STATE_VERSIONS, [1, 2, 3, 4, 5]);
+test('schema version 6 explicitly supports v1-v5 without accepting future or coercible versions', () => {
+  assert.equal(CURRENT_STATE_VERSION, 6);
+  assert.deepEqual(SUPPORTED_STATE_VERSIONS, [1, 2, 3, 4, 5, 6]);
   assert.equal(Object.isFrozen(SUPPORTED_STATE_VERSIONS), true);
   for (const version of SUPPORTED_STATE_VERSIONS) {
     assert.equal(parseBackup(encoded({ version, todos: [] })).version, CURRENT_STATE_VERSION);
   }
-  for (const version of [0, 6, '4', null, false, 2.5]) rejects({ version, todos: [] });
+  for (const version of [0, 7, '4', null, false, 2.5]) rejects({ version, todos: [] });
 });
 
-test('version 5 carries shift templates, per-day schedules and fixed ledger templates', () => {
+test('version 6 carries shift templates, per-day schedules and fixed ledger templates', () => {
   const s = legacyState();
-  s.version = 5;
+  s.version = 6;
   s.settings = {
     ...s.settings,
     breakStart: '12:00',
     breakEnd: '13:00',
-    workTemplates: [{ id: 1, name: '早班', onTime: '08:30', offTime: '17:30', breakStart: '12:00', breakEnd: '13:00' }],
-    workSchedule: [{ id: 2, date: '2026-10-13', onTime: '10:00', offTime: '19:00', breakStart: '13:00', breakEnd: '14:00' }],
+    workTemplates: [{ id: 1, name: '夜班', onTime: '22:00', offTime: '06:00', breakStart: '02:00', breakEnd: '03:00' }],
+    workSchedule: [{ id: 2, date: '2026-10-13', onTime: '22:00', offTime: '06:00', breakStart: '02:00', breakEnd: '03:00' }],
     ledgerTemplates: [{ id: 3, name: '午餐', type: 'expense', amount: 25, cat: '🍚 吃饭', note: '工作日午餐', frequency: 'daily', dayOfMonth: 1, enabled: true }]
   };
   const parsed = parseBackup(encoded(s));
   assert.equal(parsed.version, CURRENT_STATE_VERSION);
-  assert.equal(parsed.settings.workTemplates[0].name, '早班');
+  assert.equal(parsed.settings.workTemplates[0].name, '夜班');
   assert.equal(parsed.settings.workSchedule[0].date, '2026-10-13');
   assert.equal(parsed.settings.ledgerTemplates[0].frequency, 'daily');
 

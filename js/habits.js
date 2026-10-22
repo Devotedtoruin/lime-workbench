@@ -1,6 +1,6 @@
 // Habit tracking: the check-in half of "生活习惯", next to water and steps.
 //
-// Stored shape (v5 compatible — an absent `habits` array reads as "no habits yet"):
+// Stored shape (v6 compatible — an absent `habits` array reads as "no habits yet"):
 //   { id, name, icon, target, createdAt, log: { 'YYYY-MM-DD': count } }
 //
 // `target` is how many times a day counts as done (1 for most, 2+ for "drink water twice a

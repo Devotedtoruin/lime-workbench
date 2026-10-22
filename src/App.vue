@@ -94,6 +94,62 @@ function onKeydown(event) {
 
 onMounted(() => document.addEventListener('keydown', onKeydown));
 onBeforeUnmount(() => document.removeEventListener('keydown', onKeydown));
+
+// One global modal focus guard: all app dialogs are role=dialog and rendered outside .shell.
+let dialogObserver = null;
+let lastDialog = null;
+let dialogOpener = null;
+function visibleDialogs() {
+  return [...document.querySelectorAll('[role="dialog"]')]
+    .filter(el => el instanceof HTMLElement && el.getClientRects().length > 0);
+}
+function dialogFocusables(root) {
+  return [...root.querySelectorAll(
+    'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])'
+  )].filter(el => el instanceof HTMLElement && el.getClientRects().length > 0 && getComputedStyle(el).visibility !== 'hidden');
+}
+function onDialogKeydown(event) {
+  if (event.key !== 'Tab') return;
+  const dialog = visibleDialogs().at(-1);
+  if (!dialog) return;
+  const items = dialogFocusables(dialog);
+  if (!items.length) return;
+  const first = items[0];
+  const last = items.at(-1);
+  if (event.shiftKey && (document.activeElement === first || !dialog.contains(document.activeElement))) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && (document.activeElement === last || !dialog.contains(document.activeElement))) {
+    event.preventDefault();
+    first.focus();
+  }
+}
+onMounted(() => {
+  document.addEventListener('keydown', onDialogKeydown, true);
+  dialogObserver = new MutationObserver(() => {
+    const dialog = visibleDialogs().at(-1) || null;
+    if (dialog && !lastDialog) {
+      dialogOpener = document.activeElement;
+      document.querySelector('.shell')?.setAttribute('inert', '');
+      document.querySelector('.mobile-nav')?.setAttribute('inert', '');
+      setTimeout(() => {
+        const target = dialog.querySelector('input:not([disabled]),textarea:not([disabled]),select:not([disabled])') || dialogFocusables(dialog)[0];
+        target?.focus();
+      }, 40);
+    } else if (!dialog && lastDialog) {
+      document.querySelector('.shell')?.removeAttribute('inert');
+      document.querySelector('.mobile-nav')?.removeAttribute('inert');
+      if (dialogOpener instanceof HTMLElement) dialogOpener.focus();
+      dialogOpener = null;
+    }
+    lastDialog = dialog;
+  });
+  dialogObserver.observe(document.body, { childList: true, subtree: true });
+});
+onBeforeUnmount(() => {
+  document.removeEventListener('keydown', onDialogKeydown, true);
+  dialogObserver?.disconnect();
+});
 </script>
 
 <template>
@@ -104,7 +160,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKeydown));
     <button class="btn btn-soft btn-sm" type="button" @click="wb.exportBackupData()">导出备份</button>
   </div>
 
-  <div class="shell" :class="{ 'rail-collapsed': wb.railCollapsed.value }">
+  <div class="shell" :class="{ 'rail-collapsed': wb.railCollapsed.value, 'is-readonly': wb.storageBlocked.value }">
     <SideRail />
 
     <div class="content-col">
@@ -197,6 +253,18 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKeydown));
   border-radius: var(--radius-control);
   background: var(--coral-pale); color: var(--ink);
   font-size: var(--text-body);
+}
+.shell.is-readonly form,
+.shell.is-readonly .btn-primary,
+.shell.is-readonly .rail-quick,
+.shell.is-readonly .task-list,
+.shell.is-readonly .checkbox,
+.shell.is-readonly .focus-play,
+.shell.is-readonly .agenda-actions,
+.shell.is-readonly .shift-actions,
+.shell.is-readonly .template-actions,
+.shell.is-readonly .habit-check {
+  pointer-events: none; opacity: .55; cursor: not-allowed;
 }
 
 .shortcuts { width: min(440px, 100%); padding: 20px 22px 18px; }

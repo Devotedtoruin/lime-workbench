@@ -64,6 +64,7 @@ h1, h2, h3, h4, p { margin: 0; }
     radial-gradient(ellipse 48% 42% at 26% 74%, var(--scene-d) 0, transparent 68%),
     radial-gradient(ellipse 40% 36% at 52% 96%, var(--scene-a) 0, transparent 70%);
   /* Slow ambient drift keeps the light alive behind the glass. */
+  opacity: var(--scene-strength, .8);
   animation: scene-drift 42s ease-in-out infinite alternate;
   will-change: transform;
 }

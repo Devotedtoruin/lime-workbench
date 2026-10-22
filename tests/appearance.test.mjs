@@ -21,7 +21,7 @@ test('default appearance is independent, complete, and compact glass', () => {
   assert.equal(LEGACY_APPEARANCE_STORAGE_KEY, 'lime-appearance-v1');
   assert.equal(a.backgroundAssetId, ''); assert.equal(a.fontAssetId, '');
   assert.equal(a.motion, 'system'); assert.equal(a.cardStyle, 'glass');
-  assert.equal(a.backgroundDim, 0); assert.equal(a.fontScale, 1);
+  assert.equal(a.backgroundDim, 0); assert.equal(a.fontScale, 1); assert.equal(a.sceneIntensity, 0.8);
   assert.equal(a.opacity, 0.52); assert.equal(a.radius, 12);
   assert.equal(a.panelBlur, 14); assert.equal(a.backgroundBlur, 4);
   assert.equal(a.density, 'compact'); assert.equal(a.backgroundImage, '');
@@ -126,7 +126,7 @@ test('theme synchronization preserves every other committed appearance field', (
 
 function legacyAppearance(patch = {}) {
   const config = { ...defaultAppearance(), ...patch, version: 1 };
-  for (const key of ['backgroundAssetId', 'fontAssetId', 'motion', 'cardStyle', 'backgroundDim', 'fontScale']) delete config[key];
+  for (const key of ['backgroundAssetId', 'fontAssetId', 'motion', 'cardStyle', 'backgroundDim', 'fontScale', 'sceneIntensity']) delete config[key];
   return config;
 }
 

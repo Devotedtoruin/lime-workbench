@@ -59,6 +59,7 @@ function catName(c) { return (c || '').slice(2).trim() || '未分类'; }
 /* ---------------- 固定账目模板 ---------------- */
 const templateDate = ref(wb.todayStr.value);
 const showTemplateForm = ref(false);
+const editingTemplateId = ref(null);
 const templateForm = reactive({
   name: '', amount: '', type: 'expense', cat: CATEGORIES[0],
   note: '', frequency: 'manual', dayOfMonth: 1
@@ -75,14 +76,24 @@ function frequencyLabel(t) {
   if (t.frequency === 'monthly') return `每月 ${t.dayOfMonth} 日自动`;
   return '手动';
 }
+function resetTemplateForm() {
+  editingTemplateId.value = null;
+  Object.assign(templateForm, { name: '', amount: '', type: 'expense', cat: CATEGORIES[0], note: '', frequency: 'manual', dayOfMonth: 1 });
+  showTemplateForm.value = false;
+}
+function editTemplate(t) {
+  editingTemplateId.value = t.id;
+  Object.assign(templateForm, {
+    name: t.name, amount: String(t.amount), type: t.type, cat: t.cat,
+    note: t.note, frequency: t.frequency, dayOfMonth: t.dayOfMonth
+  });
+  showTemplateForm.value = true;
+}
 function saveTemplate() {
-  const ok = wb.addLedgerTemplate({ ...templateForm });
-  if (ok) {
-    templateForm.name = '';
-    templateForm.amount = '';
-    templateForm.note = '';
-    showTemplateForm.value = false;
-  }
+  const ok = editingTemplateId.value
+    ? wb.updateLedgerTemplate(editingTemplateId.value, { ...templateForm })
+    : wb.addLedgerTemplate({ ...templateForm });
+  if (ok) resetTemplateForm();
 }
 function useTemplate(template) {
   if (wb.applyLedgerTemplate(template, templateDate.value)) {
@@ -179,11 +190,17 @@ function useTemplate(template) {
             <span class="template-icon"><img :src="asset(`assets/icons/${categoryIcon(t.cat)}.svg`)" alt="" /></span>
             <div class="template-copy">
               <strong>{{ t.name }}</strong>
-              <small>{{ t.type === 'income' ? '收入' : '支出' }} · {{ money(t.amount) }} · {{ frequencyLabel(t) }}</small>
+              <small>{{ t.type === 'income' ? '收入' : '支出' }} · {{ money(t.amount) }} · {{ frequencyLabel(t) }}<template v-if="t.lastPosted"> · 上次 {{ t.lastPosted }}</template></small>
             </div>
           </div>
           <div class="template-actions">
             <button class="btn btn-primary btn-sm" type="button" @click="useTemplate(t)">记入</button>
+            <button v-if="t.frequency !== 'manual'" class="btn btn-text btn-sm" type="button" @click="wb.toggleLedgerTemplate(t.id)">
+              {{ t.enabled ? '暂停' : '启用' }}
+            </button>
+            <button class="btn-icon" type="button" aria-label="编辑模板" @click="editTemplate(t)">
+              <img :src="asset('assets/icons/pencil.svg')" alt="" />
+            </button>
             <button class="btn-icon is-danger" type="button" aria-label="删除模板" @click="wb.deleteLedgerTemplate(t.id)">
               <img :src="asset('assets/icons/trash.svg')" alt="" />
             </button>
@@ -191,6 +208,7 @@ function useTemplate(template) {
         </article>
       </div>
       <p v-else class="template-empty">例如：工作日午餐 ¥25、每天通勤 ¥6。保存后可以一键记入，也可以自动记账。</p>
+      <p class="template-note">自动记账只在打开应用或跨天时补记当天，不会在关闭页面后后台运行；删除自动记录后当天不会重新补记。每月 31 日按当月最后一天执行。</p>
 
       <form v-if="showTemplateForm" class="template-form" @submit.prevent="saveTemplate">
         <label class="field"><span>名称</span><input v-model="templateForm.name" class="input" maxlength="80" placeholder="午餐 / 通勤" required /></label>
@@ -200,7 +218,8 @@ function useTemplate(template) {
         <label class="field"><span>频率</span><select v-model="templateForm.frequency" class="input"><option v-for="f in frequencies" :key="f.id" :value="f.id">{{ f.label }}</option></select></label>
         <label v-if="templateForm.frequency === 'monthly'" class="field"><span>每月几号</span><input v-model.number="templateForm.dayOfMonth" class="input" type="number" min="1" max="31" /></label>
         <label class="field"><span>备注</span><input v-model="templateForm.note" class="input" maxlength="300" placeholder="默认用名称" /></label>
-        <button class="btn btn-primary" type="submit">保存模板</button>
+        <button class="btn btn-primary" type="submit">{{ editingTemplateId ? '更新模板' : '保存模板' }}</button>
+        <button v-if="editingTemplateId" class="btn btn-ghost" type="button" @click="resetTemplateForm">取消</button>
       </form>
     </section>
 
@@ -311,6 +330,7 @@ function useTemplate(template) {
 .template-copy small { font-size: var(--text-meta); color: var(--muted); }
 .template-actions { display: flex; align-items: center; gap: 3px; flex: 0 0 auto; }
 .template-empty { margin: 0; font-size: var(--text-sm); color: var(--muted); }
+.template-note { margin: 10px 0 0; font-size: var(--text-meta); line-height: 1.6; color: var(--muted); }
 .template-form { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)) auto; gap: 8px; align-items: end; margin-top: 14px; padding: 14px; border: 1px dashed var(--line-strong); border-radius: 14px; }
 .template-form .btn { align-self: end; }
 

@@ -38,20 +38,7 @@ const heroNow = computed(() => new Date(wb.nowTick.value).toLocaleTimeString('zh
   hour: '2-digit', minute: '2-digit', hour12: false
 }));
 
-const workdayPct = computed(() => {
-  const s = wb.todaySchedule.value;
-  const toMin = value => {
-    const [h, m] = String(value || '').split(':').map(Number);
-    return Number.isFinite(h) && Number.isFinite(m) ? h * 60 + m : 0;
-  };
-  const now = new Date();
-  if (Array.isArray(s.restDays) && s.restDays.includes(now.getDay())) return 0;
-  const start = toMin(s.onTime) || 540;
-  const end = toMin(s.offTime) || 1080;
-  if (end <= start) return 0;
-  const current = now.getHours() * 60 + now.getMinutes();
-  return Math.max(0, Math.min(100, Math.round(((current - start) / (end - start)) * 100)));
-});
+const workdayPct = computed(() => wb.todayShift.value.percent);
 
 /* ---------------- 今日任务 ---------------- */
 const agendaLimit = ref(6);
@@ -817,15 +804,15 @@ button.stat { cursor: pointer; }
 .hero-meta strong.warn { color: var(--coral); }
 .hero-meta em { margin-left: 2px; font-size: 11px; font-style: normal; font-weight: 500; color: var(--muted); }
 .hero-side { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
-.focus-hero { display: flex; flex-direction: column; gap: 6px; padding: 24px; flex: 1; min-height: 0; }
+.focus-hero { display: flex; flex-direction: column; gap: 4px; padding: 20px; flex: 1; min-height: 0; }
 .focus-hero .focus-clock { font-size: clamp(44px, 4.4vw, 64px); }
 .focus-hero .focus-row { margin-top: 2px; }
 .focus-hero .focus-more-link { align-self: flex-start; margin-top: auto; padding-left: 0; }
-.pulse-card { padding: 20px 24px 22px; }
+.pulse-card { padding: 17px 20px 18px; }
 .pulse-kicker { font-size: 12.5px; font-weight: 650; letter-spacing: .02em; color: var(--muted); }
-.pulse-clock { display: block; margin: 6px 0 2px; font-size: 30px; font-weight: 750; letter-spacing: -.035em; line-height: 1.15; }
+.pulse-clock { display: block; margin: 4px 0 2px; font-size: 28px; font-weight: 750; letter-spacing: -.035em; line-height: 1.15; }
 .pulse-sub { font-size: 12.5px; color: var(--muted); line-height: 1.5; }
-.pulse-actions { display: flex; gap: 8px; margin-top: 14px; }
+.pulse-actions { display: flex; gap: 8px; margin-top: 11px; }
 .pulse-link { margin-top: 10px; padding: 0; border: 0; background: transparent; color: var(--muted); font-size: 11.5px; text-align: left; }
 .pulse-link:hover { color: var(--brand-deep); }
 .pulse-actions .btn { flex: 1; }
@@ -908,7 +895,7 @@ button.stat { cursor: pointer; }
 .hero-now-time { font-size: clamp(48px, 4.4vw, 68px); font-weight: 600; letter-spacing: -.06em; line-height: 1; color: #f4faf3; }
 .hero-now small { max-width: 170px; font-size: 11px; line-height: 1.45; color: rgb(235 247 238 / .52); }
 .focus-dial {
-  width: 174px; height: 174px; margin: 10px auto 2px; padding: 5px; border-radius: 50%;
+  width: 158px; height: 158px; margin: 8px auto 2px; padding: 5px; border-radius: 50%;
   display: grid; place-items: center;
   background: conic-gradient(var(--brand) calc(var(--p, 0) * 1%), color-mix(in srgb, var(--line) 72%, transparent) 0);
   box-shadow: 0 10px 30px -24px color-mix(in srgb, var(--brand) 28%, transparent);
