@@ -760,7 +760,7 @@ export function useWorkbench() {
     save();
   }
 
-  function addLedgerTemplate({ name, type = 'expense', amount, cat = CATEGORIES[0], note = '', frequency = 'manual', dayOfMonth = 1, enabled = true }) {
+  function addLedgerTemplate({ name, type = 'expense', amount, cat = CATEGORIES[0], note = '', frequency = 'manual', dayOfMonth = 1, enabled = true, reminderDays = 3 }) {
     const clean = String(name || '').trim();
     const amt = Math.abs(Number(amount) || 0);
     if (!clean || !validateText(clean, TEXT_LIMITS.taskTag)) { showToast('模板名称无效'); return false; }
@@ -773,7 +773,7 @@ export function useWorkbench() {
       cat: cat || CATEGORIES[0], note: String(note || '').trim() || clean,
       frequency: ['daily', 'weekday', 'monthly', 'manual'].includes(frequency) ? frequency : 'manual',
       dayOfMonth: Math.min(31, Math.max(1, Number(dayOfMonth) || 1)), enabled: Boolean(enabled),
-      lastPosted: ''
+      lastPosted: '', reminderDays: Math.min(30, Math.max(0, Number(reminderDays) || 0))
     });
     if (!save()) return false;
     autoPostLedgerTemplates(true);
@@ -781,7 +781,7 @@ export function useWorkbench() {
     return true;
   }
 
-  function updateLedgerTemplate(id, { name, type = 'expense', amount, cat = CATEGORIES[0], note = '', frequency = 'manual', dayOfMonth = 1, enabled = true }) {
+  function updateLedgerTemplate(id, { name, type = 'expense', amount, cat = CATEGORIES[0], note = '', frequency = 'manual', dayOfMonth = 1, enabled = true, reminderDays = 3 }) {
     const item = (state.settings.ledgerTemplates || []).find(t => String(t.id) === String(id));
     if (!item) return false;
     const clean = String(name || '').trim();
@@ -793,7 +793,8 @@ export function useWorkbench() {
       name: clean, type: type === 'income' ? 'income' : 'expense', amount: amt,
       cat: cat || CATEGORIES[0], note: String(note || '').trim() || clean,
       frequency: ['daily', 'weekday', 'monthly', 'manual'].includes(frequency) ? frequency : 'manual',
-      dayOfMonth: Math.min(31, Math.max(1, Number(dayOfMonth) || 1)), enabled: Boolean(enabled)
+      dayOfMonth: Math.min(31, Math.max(1, Number(dayOfMonth) || 1)), enabled: Boolean(enabled),
+      reminderDays: Math.min(30, Math.max(0, Number(reminderDays) || 0))
     });
     if (!save()) return false;
     autoPostLedgerTemplates(true);
@@ -865,6 +866,28 @@ export function useWorkbench() {
     }
     return posted;
   }
+
+  const upcomingRenewals = computed(() => {
+    const now = nowDate.value;
+    const start = new Date(now);
+    start.setHours(0, 0, 0, 0);
+    const build = (template, year, month) => {
+      const lastDay = new Date(year, month + 1, 0).getDate();
+      return new Date(year, month, Math.min(template.dayOfMonth, lastDay));
+    };
+    return (state.settings.ledgerTemplates || [])
+      .filter(template => template.frequency === 'monthly' && template.enabled)
+      .map(template => {
+        let next = build(template, now.getFullYear(), now.getMonth());
+        if (next < start) {
+          const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+          next = build(template, nextMonth.getFullYear(), nextMonth.getMonth());
+        }
+        const days = Math.round((next - start) / 86400000);
+        return { ...template, nextDate: todayKey(next), days, dueSoon: days <= template.reminderDays };
+      })
+      .sort((a, b) => a.days - b.days);
+  });
 
   function deleteLedgerRecord(id) {    const idx = state.ledger.findIndex(r => r.id === id);
     if (idx < 0) return;
@@ -1450,6 +1473,7 @@ export function useWorkbench() {
     deleteLedgerTemplate,
     applyLedgerTemplate,
     autoPostLedgerTemplates,
+    upcomingRenewals,
     addSportRecord,
     habits,
     habitToday,

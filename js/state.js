@@ -224,7 +224,7 @@ function workScheduleEntry(value, ctx, path) {
   return { id, date, onTime, offTime, breakStart, breakEnd };
 }
 
-const LEDGER_TEMPLATE_KEYS = ['id', 'name', 'type', 'amount', 'cat', 'note', 'frequency', 'dayOfMonth', 'enabled', 'lastPosted'];
+const LEDGER_TEMPLATE_KEYS = ['id', 'name', 'type', 'amount', 'cat', 'note', 'frequency', 'dayOfMonth', 'enabled', 'lastPosted', 'reminderDays'];
 function ledgerTemplate(value, ctx, path) {
   const obj = record(value, LEDGER_TEMPLATE_KEYS, ctx, path);
   if (obj === BAD) return BAD;
@@ -238,8 +238,9 @@ function ledgerTemplate(value, ctx, path) {
   const dayOfMonth = required(obj, 'dayOfMonth', number(1, 31, true), ctx, path);
   const enabled = required(obj, 'enabled', bool, ctx, path);
   const lastPosted = field(obj, 'lastPosted', value => value === '' ? '' : pattern(DATE_RE)(value, ctx, path), '', ctx, path);
+  const reminderDays = field(obj, 'reminderDays', number(0, 30, true), 3, ctx, path);
   if ([id, name, type, amount, cat, note, frequency, dayOfMonth, enabled].includes(BAD)) return BAD;
-  return { id, name, type, amount, cat, note, frequency, dayOfMonth, enabled, lastPosted };
+  return { id, name, type, amount, cat, note, frequency, dayOfMonth, enabled, lastPosted, reminderDays };
 }
 
 function settings(value, ctx, path) {

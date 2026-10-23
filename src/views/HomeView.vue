@@ -106,7 +106,19 @@ const spark = computed(() => {
 });
 
 /* 提醒 next */
-const nextUpcoming = computed(() => wb.upcomingReminders.value.slice(0, 4));
+const nextUpcoming = computed(() => {
+  const renewals = wb.upcomingRenewals.value
+    .filter(item => item.dueSoon)
+    .map(item => ({
+      sourceKind: 'renewal',
+      sourceId: `renewal-${item.id}`,
+      label: `${item.name} 续费`,
+      dueAt: new Date(`${item.nextDate}T09:00:00`).getTime()
+    }));
+  return [...wb.upcomingReminders.value, ...renewals]
+    .sort((a, b) => a.dueAt - b.dueAt)
+    .slice(0, 4);
+});
 
 /* 今日复盘：只读汇总，数字全部来自已有记录 */
 const todayReview = computed(() => reviewFor(wb.todayStr.value, wb.state));

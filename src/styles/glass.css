@@ -13,13 +13,14 @@
 * { box-sizing: border-box; }
 html { min-width: 320px; background: var(--bg); scroll-behavior: smooth; scroll-padding-top: 96px; }
 body {
-  margin: 0; min-height: 100vh; color: var(--ink);
+  margin: 0; min-height: 100vh; min-height: 100dvh; color: var(--ink);
+  -webkit-tap-highlight-color: transparent; -webkit-text-size-adjust: 100%; overscroll-behavior: none;
   font-family: var(--font-ui); font-size: var(--text-body); line-height: 1.6;
   -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
   font-kerning: normal; overflow-x: hidden;
 }
 button, input, select, textarea { font: inherit; color: inherit; }
-button { cursor: pointer; touch-action: manipulation; }
+button, a, [role="button"] { cursor: pointer; touch-action: manipulation; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
 button:disabled, input:disabled, select:disabled { cursor: not-allowed; opacity: .55; }
 img { display: block; max-width: 100%; }
 [hidden] { display: none !important; }
@@ -468,4 +469,8 @@ html[data-nav-dir="down"] { --vt-dir: 1; }
   .card-hover:hover, .rail-item:hover, .panel.glass:hover, .agenda-row:hover,
   .note:hover, .link-card:hover { transform: none !important; }
   .spot::after, .panel.glass::after { opacity: 0 !important; transition: none !important; }
+}
+
+@media (pointer: coarse) {
+  input, textarea, select { font-size: 16px !important; }
 }

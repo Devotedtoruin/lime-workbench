@@ -62,7 +62,7 @@ const showTemplateForm = ref(false);
 const editingTemplateId = ref(null);
 const templateForm = reactive({
   name: '', amount: '', type: 'expense', cat: CATEGORIES[0],
-  note: '', frequency: 'manual', dayOfMonth: 1
+  note: '', frequency: 'manual', dayOfMonth: 1, reminderDays: 3
 });
 const frequencies = [
   { id: 'manual', label: '手动模板' },
@@ -78,14 +78,14 @@ function frequencyLabel(t) {
 }
 function resetTemplateForm() {
   editingTemplateId.value = null;
-  Object.assign(templateForm, { name: '', amount: '', type: 'expense', cat: CATEGORIES[0], note: '', frequency: 'manual', dayOfMonth: 1 });
+  Object.assign(templateForm, { name: '', amount: '', type: 'expense', cat: CATEGORIES[0], note: '', frequency: 'manual', dayOfMonth: 1, reminderDays: 3 });
   showTemplateForm.value = false;
 }
 function editTemplate(t) {
   editingTemplateId.value = t.id;
   Object.assign(templateForm, {
     name: t.name, amount: String(t.amount), type: t.type, cat: t.cat,
-    note: t.note, frequency: t.frequency, dayOfMonth: t.dayOfMonth
+    note: t.note, frequency: t.frequency, dayOfMonth: t.dayOfMonth, reminderDays: t.reminderDays ?? 3
   });
   showTemplateForm.value = true;
 }
@@ -184,13 +184,25 @@ function useTemplate(template) {
         </button>
       </div>
 
+      <div v-if="wb.upcomingRenewals.value.length" class="renewal-strip">
+        <p class="renewal-title">订阅与续费</p>
+        <div v-for="r in wb.upcomingRenewals.value" :key="r.id" class="renewal-row" :class="{ 'is-soon': r.dueSoon }">
+          <span class="renewal-when">{{ r.days === 0 ? '今天' : `${r.days} 天后` }}</span>
+          <div class="renewal-copy">
+            <strong>{{ r.name }}</strong>
+            <small>{{ r.nextDate }} · {{ money(r.amount) }} · 提前 {{ r.reminderDays }} 天提醒</small>
+          </div>
+          <button class="btn btn-soft btn-sm" type="button" @click="useTemplate(r)">记续费</button>
+        </div>
+      </div>
+
       <div v-if="wb.state.settings.ledgerTemplates.length" class="template-grid">
         <article v-for="t in wb.state.settings.ledgerTemplates" :key="t.id" class="template-card">
           <div class="template-head">
             <span class="template-icon"><img :src="asset(`assets/icons/${categoryIcon(t.cat)}.svg`)" alt="" /></span>
             <div class="template-copy">
               <strong>{{ t.name }}</strong>
-              <small>{{ t.type === 'income' ? '收入' : '支出' }} · {{ money(t.amount) }} · {{ frequencyLabel(t) }}<template v-if="t.lastPosted"> · 上次 {{ t.lastPosted }}</template></small>
+              <small>{{ t.type === 'income' ? '收入' : '支出' }} · {{ money(t.amount) }} · {{ frequencyLabel(t) }}<template v-if="t.frequency === 'monthly'"> · 提前 {{ t.reminderDays }} 天提醒</template><template v-if="t.lastPosted"> · 上次 {{ t.lastPosted }}</template></small>
             </div>
           </div>
           <div class="template-actions">
@@ -217,6 +229,7 @@ function useTemplate(template) {
         <label class="field"><span>分类</span><select v-model="templateForm.cat" class="input"><option v-for="c in CATEGORIES" :key="c" :value="c">{{ c.slice(2).trim() }}</option></select></label>
         <label class="field"><span>频率</span><select v-model="templateForm.frequency" class="input"><option v-for="f in frequencies" :key="f.id" :value="f.id">{{ f.label }}</option></select></label>
         <label v-if="templateForm.frequency === 'monthly'" class="field"><span>每月几号</span><input v-model.number="templateForm.dayOfMonth" class="input" type="number" min="1" max="31" /></label>
+        <label v-if="templateForm.frequency === 'monthly'" class="field"><span>提前几天提醒</span><input v-model.number="templateForm.reminderDays" class="input" type="number" min="0" max="30" /></label>
         <label class="field"><span>备注</span><input v-model="templateForm.note" class="input" maxlength="300" placeholder="默认用名称" /></label>
         <button class="btn btn-primary" type="submit">{{ editingTemplateId ? '更新模板' : '保存模板' }}</button>
         <button v-if="editingTemplateId" class="btn btn-ghost" type="button" @click="resetTemplateForm">取消</button>
@@ -318,7 +331,15 @@ function useTemplate(template) {
 .ledger-amount.income { color: var(--brand-deep); }
 .ledger-amount.expense { color: var(--ink); }
 
-.template-tools { display: flex; align-items: flex-end; justify-content: flex-start; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+.renewal-strip { display: grid; gap: 6px; margin: 0 0 14px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 14px; background: color-mix(in srgb, var(--surface) 54%, transparent); }
+.renewal-title { margin: 0 0 3px; font-size: var(--text-meta); font-weight: 700; color: var(--muted); letter-spacing: .06em; }
+.renewal-row { display: flex; align-items: center; gap: 10px; padding: 6px 0; border-top: 1px solid var(--line); }
+.renewal-row:first-of-type { border-top: 0; }
+.renewal-when { min-width: 46px; font-size: var(--text-meta); font-weight: 650; color: var(--muted); }
+.renewal-row.is-soon .renewal-when { color: var(--brand-deep); }
+.renewal-copy { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.renewal-copy strong { font-size: var(--text-body); font-weight: 650; }
+.renewal-copy small { font-size: var(--text-meta); color: var(--muted); }.template-tools { display: flex; align-items: flex-end; justify-content: flex-start; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
 .template-date { min-width: 170px; }
 .template-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 8px; }
 .template-card { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-soft); }
