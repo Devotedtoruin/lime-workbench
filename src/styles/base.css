@@ -1,0 +1,195 @@
+/* ============================================================
+   青柠工作台 · 现代精密设计系统令牌 (Precision Design Tokens)
+   栅格规范 / 表面材质 / 色彩层级 / 动态物理曲线 / 响应式尺度
+   ============================================================ */
+:root {
+  color-scheme: light;
+
+  /* 现代无衬线字体栈与等宽数值字体 */
+  --font-ui: "Plus Jakarta Sans", "Segoe UI Variable Text", "Segoe UI", -apple-system, BlinkMacSystemFont,
+    "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei UI", "Noto Sans CJK SC", sans-serif;
+  --font-numeric: "JetBrains Mono", "Bahnschrift", "Segoe UI Variable Text", ui-monospace, SFMono-Regular, system-ui, sans-serif;
+  --font-display: "Plus Jakarta Sans", "Songti SC", "STSong", "Noto Serif CJK SC", serif;
+
+  /* 文字三级：muted 按「玻璃最低 45% 不透明度 + 最饱和预设」校准到 ≥4.5:1 */
+  --ink: #0f172a;
+  --ink-soft: #475569;
+  --muted: #405066;
+
+  /* 画布与表面：现代 SaaS 极简高对比白与微灰层级 */
+  --bg: #f8fafc;
+  --surface: #ffffff;
+  --surface-soft: #f1f5f9;
+  --surface-raised: #ffffff;
+  --line: #e2e8f0;
+  /* 3.1:1 on white — input/control boundaries must stay visible (WCAG 1.4.11). */
+  --line-strong: #94a3b8;
+
+  /* 液态玻璃：保留令牌兼容，提升表面实度 */
+  --glass-alpha: 88%;
+  --glass-blur: 26px;
+  --glass-saturate: 180%;
+  --glass-rim: rgb(255 255 255 / .82);
+  --glass-rim-soft: rgb(255 255 255 / .32);
+  --glass-veil: rgb(255 255 255 / .06);
+
+  /* 品牌：现代深青绿 */
+  --brand: #10b981;
+  --brand-deep: #047857;
+  --brand-pale: #ecfdf5;
+  --brand-grad: linear-gradient(135deg, #059669, #10b981 55%, #34d399);
+  --lime: #a7f3d0;
+  --cta-bg: #0f172a;
+  --cta-bg-hover: #1e293b;
+  --cta-fg: #ffffff;
+
+  /* 语义色 */
+  --coral: #e11d48;
+  --coral-pale: #fff1f2;
+  --amber: #d97706;
+  --amber-pale: #fffbeb;
+  --blue: #2563eb;
+  --blue-pale: #eff6ff;
+  --violet: #7c3aed;
+  --violet-pale: #f5f3ff;
+
+  /* 圆角：现代 SaaS 精密圆角 */
+  --radius-card: 16px;
+  --radius-control: 10px;
+  --radius-pill: 999px;
+
+  /* 阴影：线性微阴影体系 */
+  --shadow-sm: 0 1px 2px rgb(15 23 42 / .04), 0 1px 3px rgb(15 23 42 / .03);
+  --shadow-md: 0 10px 24px -8px rgb(15 23 42 / .07), 0 2px 6px -2px rgb(15 23 42 / .04);
+  --shadow-lg: 0 20px 40px -16px rgb(15 23 42 / .14), 0 6px 14px -8px rgb(15 23 42 / .06);
+  --shadow-brand: 0 6px 16px -6px rgb(16 185 129 / .28);
+  /* Solid 2px ring: composite alpha rings measured ~1.3:1, below the 3:1 focus minimum. */
+  --ring: 0 0 0 2px var(--brand);
+
+  /* 字号：统一到 6 档，组件不再写裸字号 */
+  --text-2xs: 11.5px;
+  --text-meta: 12px;
+  --text-sm: 12.5px;
+  --text-body: 13.5px;
+  --text-md: 15.5px;
+  --text-lg: 18px;
+  --text-h1: 26px;
+  --text-hero: 32px;
+  /* 间距：8pt 栅格 */
+  --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px;
+  --s5: 20px; --s6: 24px; --s7: 28px; --s8: 32px; --s10: 40px; --s12: 48px;
+
+  /* 动效 */
+  --ease-out: cubic-bezier(.22, .61, .36, 1);
+  --ease-spring: cubic-bezier(.32, .72, .28, 1);
+  --motion-fast: 140ms;
+  --motion-base: 200ms;
+  --motion-slow: 300ms;
+
+  /* 布局 */
+  --sidebar-w: 240px;
+  --sidebar-w-collapsed: 76px;
+  --shell-gap: 16px;
+  /* Was a hard 1440px, which left 400+ px of dead space on each side of a 2560 display while
+     every panel stayed narrow. The content column now grows with the window; the grid inside
+     decides how many columns fit. */
+  --content-max: 1920px;
+
+  /* 场景渐变（由主题预设覆盖） */
+  --scene-base: #e7edf3;
+  --scene-a: rgba(120, 205, 190, .62);
+  --scene-b: rgba(146, 168, 220, .58);
+  --scene-c: rgba(190, 214, 232, .5);
+  --scene-d: rgba(186, 214, 168, .44);
+  --background-image: none;
+  --background-dim: 0;
+}
+
+/* ---------- 深色 ---------- */
+[data-theme="dark"] {
+  color-scheme: dark;
+  --ink: #e9edf5;
+  --ink-soft: #c2cbdb;
+  --muted: #a4b2c6;
+  --bg: #0a0e1a;
+  --surface: #151b28;
+  --surface-soft: #1d2432;
+  --surface-raised: #1a2130;
+  --line: #2a3444;
+  --line-strong: #5b6b80;
+  --glass-alpha: 72%;
+  --glass-rim: rgb(255 255 255 / .16);
+  --glass-rim-soft: rgb(255 255 255 / .04);
+  --glass-veil: rgb(17 22 31 / .04);
+  --brand: #9bd8b8;
+  --brand-deep: #c1e9d1;
+  --brand-pale: #254034;
+  --brand-grad: linear-gradient(135deg, #2f8a63, #57b588 52%, #8ed6ac);
+  --cta-bg: #2d7357;
+  --cta-bg-hover: #368463;
+  --coral: #f0a297;
+  --coral-pale: #3d2a2a;
+  --amber: #ddbd78;
+  --amber-pale: #38301f;
+  --blue: #a6c6dc;
+  --blue-pale: #25323f;
+  --violet: #c4b4df;
+  --violet-pale: #312c40;
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / .22), 0 1px 3px rgb(0 0 0 / .16);
+  --shadow-md: 0 8px 20px -8px rgb(0 0 0 / .32), 0 2px 6px -2px rgb(0 0 0 / .16);
+  --shadow-lg: 0 24px 48px -18px rgb(0 0 0 / .62), 0 8px 18px -8px rgb(0 0 0 / .34);
+  --shadow-brand: 0 8px 20px -6px rgb(0 0 0 / .5);
+  --ring: 0 0 0 2px var(--brand);
+  --scene-base: #0b1729;
+  --scene-a: rgba(26, 122, 122, .62);
+  --scene-b: rgba(52, 78, 158, .58);
+  --scene-c: rgba(40, 96, 136, .52);
+  --scene-d: rgba(36, 110, 82, .46);
+}
+
+/* ---------- 强调色 ---------- */
+[data-accent="blue"] { --brand: #34698a; --brand-deep: #285d7d; --brand-pale: #e6f0f6; --cta-bg: #306788; --cta-bg-hover: #255976; }
+[data-accent="violet"] { --brand: #725b94; --brand-deep: #634783; --brand-pale: #f0eaf7; --cta-bg: #6e528f; --cta-bg-hover: #5f447e; }
+[data-accent="amber"] { --brand: #8b632c; --brand-deep: #755121; --brand-pale: #f6eddc; --cta-bg: #876027; --cta-bg-hover: #73501f; }
+[data-accent="cyan"] { --brand: #176d79; --brand-deep: #105c66; --brand-pale: #e1f3f4; --cta-bg: #176772; --cta-bg-hover: #10545e; }
+[data-accent="rose"] { --brand: #9b4369; --brand-deep: #823454; --brand-pale: #f8e9ef; --cta-bg: #963e64; --cta-bg-hover: #7e3152; }
+[data-accent="graphite"] { --brand: #52616c; --brand-deep: #3e4c56; --brand-pale: #e9edf0; --cta-bg: #4d5b66; --cta-bg-hover: #3c4953; }
+
+[data-theme="dark"][data-accent="blue"] { --brand: #a0c9e0; --brand-deep: #b9dbef; --brand-pale: #20333f; --cta-bg: #326b8c; --cta-bg-hover: #3c7d9f; }
+[data-theme="dark"][data-accent="violet"] { --brand: #c6b2e5; --brand-deep: #ddc9f7; --brand-pale: #342b43; --cta-bg: #71558f; --cta-bg-hover: #81649f; }
+[data-theme="dark"][data-accent="amber"] { --brand: #e0bd82; --brand-deep: #f0d29f; --brand-pale: #3c3123; --cta-bg: #8b652e; --cta-bg-hover: #9f7436; }
+[data-theme="dark"][data-accent="cyan"] { --brand: #8bd6df; --brand-deep: #b5eaf0; --brand-pale: #173a40; --cta-bg: #206875; --cta-bg-hover: #287c8a; }
+[data-theme="dark"][data-accent="rose"] { --brand: #edacc7; --brand-deep: #f7ccdf; --brand-pale: #422a38; --cta-bg: #943f64; --cta-bg-hover: #a94c74; }
+[data-theme="dark"][data-accent="graphite"] { --brand: #bccbd6; --brand-deep: #dee7ef; --brand-pale: #2d3741; --cta-bg: #536473; --cta-bg-hover: #65798b; }
+
+/* ---------- 桌面主题预设 ---------- */
+[data-preset="aurora"] { --scene-base: #e6f2ef; --scene-a: rgba(92, 196, 178, .68); --scene-b: rgba(174, 213, 120, .46); --scene-c: rgba(135, 170, 220, .50); --scene-d: rgba(92, 196, 178, .34); }
+[data-preset="mint"] { --scene-base: #e7efea; --scene-a: rgba(96, 198, 158, .78); --scene-b: rgba(133, 205, 199, .74); --scene-c: rgba(226, 219, 152, .52); --scene-d: rgba(170, 214, 176, .6); }
+[data-preset="sunset"] { --scene-base: #f0e7e4; --scene-a: rgba(239, 168, 122, .78); --scene-b: rgba(180, 143, 205, .72); --scene-c: rgba(239, 200, 145, .62); --scene-d: rgba(238, 150, 160, .5); }
+[data-preset="plain"] { --scene-base: var(--bg); --scene-a: transparent; --scene-b: transparent; --scene-c: transparent; --scene-d: transparent; }
+[data-preset="ocean"] { --scene-base: #e5eff5; --scene-a: rgba(73, 175, 200, .7); --scene-b: rgba(108, 154, 214, .7); --scene-c: rgba(160, 216, 219, .56); --scene-d: rgba(120, 200, 180, .5); }
+[data-preset="paper"] { --scene-base: #f1eee6; --scene-a: rgba(219, 200, 158, .42); --scene-b: rgba(206, 193, 170, .4); --scene-c: rgba(242, 235, 218, .34); --scene-d: rgba(224, 208, 176, .36); }
+[data-preset="forest"] { --scene-base: #e5ede5; --scene-a: rgba(96, 160, 96, .68); --scene-b: rgba(134, 172, 128, .62); --scene-c: rgba(203, 198, 130, .48); --scene-d: rgba(150, 190, 160, .55); }
+[data-preset="twilight"] { --scene-base: #eae7f3; --scene-a: rgba(156, 132, 205, .62); --scene-b: rgba(112, 148, 199, .64); --scene-c: rgba(210, 165, 198, .5); --scene-d: rgba(178, 140, 210, .48); }
+/* Aurora is the default preset; without an explicit dark variant its light scene values
+   override the dark-theme defaults below and leave the page on a pale background. */
+[data-theme="dark"][data-preset="aurora"] { --scene-base: #081421; --scene-a: rgba(31, 143, 133, .56); --scene-b: rgba(52, 96, 170, .46); --scene-c: rgba(143, 186, 92, .20); --scene-d: rgba(31, 143, 133, .26); }
+[data-theme="dark"][data-preset="ocean"] { --scene-base: #102332; --scene-a: rgba(27, 130, 150, .68); --scene-b: rgba(50, 86, 160, .64); --scene-c: rgba(45, 122, 134, .48); --scene-d: rgba(30, 120, 100, .5); }
+[data-theme="dark"][data-preset="paper"] { --scene-base: #23231f; --scene-a: rgba(110, 100, 72, .4); --scene-b: rgba(88, 84, 70, .38); --scene-c: rgba(108, 102, 82, .3); --scene-d: rgba(96, 92, 76, .34); }
+[data-theme="dark"][data-preset="forest"] { --scene-base: #16271d; --scene-a: rgba(58, 128, 68, .68); --scene-b: rgba(74, 122, 80, .62); --scene-c: rgba(120, 118, 58, .38); --scene-d: rgba(48, 116, 92, .55); }
+[data-theme="dark"][data-preset="twilight"] { --scene-base: #201d35; --scene-a: rgba(110, 76, 160, .64); --scene-b: rgba(58, 96, 150, .64); --scene-c: rgba(140, 76, 122, .44); --scene-d: rgba(88, 70, 140, .5); }
+[data-theme="dark"][data-preset="mint"] { --scene-base: #152622; --scene-a: rgba(48, 140, 116, .78); --scene-b: rgba(50, 128, 134, .66); --scene-c: rgba(118, 118, 68, .32); --scene-d: rgba(50, 130, 100, .6); }
+[data-theme="dark"][data-preset="sunset"] { --scene-base: #281e25; --scene-a: rgba(170, 94, 58, .68); --scene-b: rgba(104, 68, 132, .7); --scene-c: rgba(160, 112, 70, .38); --scene-d: rgba(150, 70, 96, .5); }
+
+/* ---------- 密度 ---------- */
+[data-density="standard"] { --shell-gap: 18px; }
+[data-density="comfortable"] { --shell-gap: 22px; }
+
+/* Very wide screens: a 240px rail reads as a thin strip beside 1900px of content. Widen it in
+   step with the content column so the two keep a similar visual weight. */
+@media (min-width: 1900px) {
+  :root { --sidebar-w: 272px; }
+}
+@media (min-width: 2300px) {
+  :root { --sidebar-w: 300px; --content-max: 2160px; }
+}

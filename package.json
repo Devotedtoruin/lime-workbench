@@ -1,0 +1,24 @@
+{
+  "name": "lime-workbench",
+  "version": "1.0.0",
+  "description": "青柠工作台 · 本地优先的个人工作台：任务排期、番茄专注、班次与提醒、结构化日报、收支账本（Vue 3 + Vite，PWA）",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "vite --port 3000 --host 0.0.0.0",
+    "dev": "vite --port 3000 --host 0.0.0.0",
+    "build": "vite build",
+    "build:static": "vite build",
+    "preview": "vite preview --port 4173 --host 127.0.0.1",
+    "test": "node --test tests/*.test.mjs",
+    "gen:meta": "node tools/gen-theme-meta.mjs"
+  },
+  "dependencies": {
+    "vue": "^3.5.13"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^6.0.10",
+    "vite": "^8.3.5"
+  },
+  "license": "MIT"
+}

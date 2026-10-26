@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-and-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Set up Node 24
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      # `npm ci` needs a lockfile that agrees with package.json. It used to be missing from the
+      # repository, so this job (and pages.yml) failed before running a single test.
+      - name: Install dependencies
+        run: npm ci
+      - name: Run unit tests
+        run: npm test
+      - name: Build the Vue bundle
+        run: npm run build
+      - name: Verify the built shell
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f dist/index.html
+          test -f dist/sw.js
+          test -f dist/manifest.webmanifest
+          test -f dist/assets/brand.svg
+          test -d dist/assets/icons
+          echo "Vue bundle and static assets are present in dist"
+      - name: Verify the CSP survived the build
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q 'http-equiv="Content-Security-Policy"' dist/index.html
+          grep -q "script-src 'self' 'nonce-" dist/index.html
+          grep -q "object-src 'none'" dist/index.html
+          node tools/gen-theme-meta.mjs --check
+          echo "dist/index.html ships a CSP with a script nonce"

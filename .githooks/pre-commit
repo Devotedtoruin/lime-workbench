@@ -1,0 +1,46 @@
+#!/bin/sh
+# 提交前检查：拦截测试产物、构建产物、凭据和备份文件。
+# 安装方式（每个 clone 一次）：git config core.hooksPath .githooks
+# 跳过：git commit --no-verify（仅在确认安全时使用）
+
+fail=0
+IFS='
+'
+files=$(git diff --cached --name-only --diff-filter=ACMR)
+
+block() { echo "[BLOCK] $1"; fail=1; }
+
+for f in $files; do
+  case "$f" in
+    # 构建产物
+    dist/*|build/*|target/*|node_modules/*|preview-public/*)
+      block "构建产物不应提交: $f" ;;
+    # 环境与凭据（模板文件允许提交）
+    .env.example|.env.*.example|.env.template|.env.*.template) ;;
+    .env|.env.*|*.env|*.key|*.pem|*.p12|*.pfx|*.jks|*.keystore|key.properties|keystore.properties|signing.properties)
+      block "环境文件或密钥材料: $f" ;;
+    # 备份与副本
+    *.bak|*.bak.*|*-copy*|*\ \(1\)*|*\ \(2\)*|_backup*|*backup*.json)
+      block "备份或副本文件: $f" ;;
+    # 测试产出（允许主题/素材/文档目录下的正常图片）
+    *.png|*.jpg|*.jpeg|*.webp|*.gif|*.mp4)
+      case "$f" in
+        source/*|themes/*|assets/*|docs/*|public/*|src/*) ;;
+        *) block "可疑位置的媒体文件: $f" ;;
+      esac ;;
+  esac
+done
+
+# 暂存内容里的凭据模式
+if git diff --cached -U0 -- . ':(exclude)*.lock' ':(exclude)package-lock.json' 2>/dev/null |
+   grep -nE 'github_pat_[A-Za-z0-9_]{20,}|ghp_[A-Za-z0-9]{20,}|sk-[A-Za-z0-9]{20,}|BEGIN [A-Z ]*PRIVATE KEY' >/dev/null 2>&1; then
+  block "暂存内容中检测到疑似凭据（token / 私钥）"
+fi
+
+if [ "$fail" -ne 0 ]; then
+  echo ""
+  echo "提交已阻止。确认无误后可用 git commit --no-verify 跳过（请谨慎）。"
+  exit 1
+fi
+
+exit 0
