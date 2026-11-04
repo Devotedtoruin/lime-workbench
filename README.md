@@ -4,7 +4,7 @@
 
 线上演示：<https://devotedtoruin.github.io/lime-workbench/>
 
-技术架构：Vue 3 + Vite，Web / PWA 优先架构；`src-tauri/` 包含 Tauri 2 桌面端与移动端工程配置。
+技术架构：Vue 3 + Vite 8，Web / PWA 优先的静态单页应用；界面与响应式状态位于 `src/`，可独立测试的业务模块位于 `js/`，测试使用 Node.js 内置 Test Runner（非 Vitest）。[src-tauri/](src-tauri/) 保留 Tauri 2 桌面端与移动端工程配置，尚未验证原生构建或发布。
 
 ## 核心设计理念
 
@@ -30,12 +30,12 @@
 | 全局快捷键 | `Ctrl/Cmd + K` 命令面板，`N` 新建任务，`F` 专注页，`D` 日报页，`R` 休息模式，`?` 快捷键说明 |
 | 外观与个性化 | 工作台名称与个人头像、8 款桌面主题预设、7 种品牌强调色、明暗外观切换、卡片质感、布局密度、玻璃通透度与自定义壁纸 |
 | AI 会话 | 命令面板有会话 ID、最近上下文与新会话；同一标签页刷新后仍可继续；AI 返回的多个动作会一起预览并依次执行 |
-| AI 配置 | 兼容 OpenAI 接口；可一键探测 `/models` 远端模型（也可在保存后自动读取，可关闭）；地址、模型、Key、人设与会话可一键清除 |
-| 可选联网 | 手动或定位查天气；OpenAI 兼容 API 只在明确发送或开启自动读取模型列表时请求 |
+| AI 配置 | 兼容 OpenAI 接口；可一键探测 `/models` 远端模型，保存有效配置后默认自动读取（可关闭）；地址、模型、Key、人设与会话可一键清除 |
+| 可选联网 | 手动搜索城市或主动定位查天气，已保存城市与坐标时启动会刷新天气；AI 对话、连接测试、手动模型探测与保存后的自动模型读取会请求配置的 API |
 
 ## 本地开发
 
-环境要求：Node.js 22+
+环境要求：Node.js 22.12+（CI 使用 Node.js 24）
 
 ```bash
 npm install
@@ -50,10 +50,10 @@ npm start        # 启动本地开发服务器
 npm test         # Node Test Runner：业务 / 边界 / 设计系统 / CSP 测试
 npm run build    # 编译生产环境静态产物至 dist/（构建后自动写入 CSP）
 npm run preview  # 预览生产构建，http://127.0.0.1:4173
-npm run gen:meta # 单独重写 index.html 的 CSP 与首帧主题引导脚本
+npm run gen:meta # 重写 index.html 及已有 dist/index.html 的 CSP 与首帧主题引导脚本
 ```
 
-生产部署仅需发布 `dist/` 目录。代码推送至主分支后，由 GitHub Actions 自动执行测试、构建与 GitHub Pages 部署。
+生产部署仅需发布 `dist/` 目录。代码推送至 `master` 后，由 GitHub Actions 自动执行测试、构建与 GitHub Pages 部署；这条流程独立于博客源码构建与成品仓库发布。
 
 `package-lock.json` **必须提交**：CI 用 `npm ci` 安装依赖，缺少锁文件会在跑测试之前直接失败。
 
@@ -67,21 +67,22 @@ src/
   composables/           useWorkbench（响应式状态与操作封装）、useWeather
   views/                 今日 / 任务 / 专注 / 日报 / 日历 / 账本 / 习惯 / 运动 / 天气 / 设置视图
   styles/                base.css（设计系统令牌）、glass.css（表面材质与微动效）
-js/                      纯函数业务逻辑：状态校验、本地存储、命令解析、主题色、提醒、专注、账单、天气等
+js/                      可独立测试的业务模块：状态校验、本地存储、命令解析、主题色、提醒、专注、账单、天气与 AI 等
 tests/                   Node.js 单元测试套件（覆盖业务规则、边界条件与设计系统约束）
 assets/                  矢量图标与视觉素材
 public/                  PWA 清单、Service Worker 与应用图标
 tools/                   构建检查与辅助脚本（含 CSP/主题元数据生成）
-src-tauri/               Tauri 2 跨平台客户端配置
+src-tauri/               Tauri 2 原生工程配置（构建与发布未验证）
 docs/                    使用指南、发布流程与第三方许可声明
 ```
 
 ## 数据安全与隐私声明
 
 - **纯本地存储**：默认无服务端账号与云端同步，结构化数据存储于 `localStorage`，头像与自定义壁纸作为压缩后的本地图片保存（不上传）。
-- **数据备份**：清理浏览器站点数据或更换设备前，请通过「设置 → 数据与备份」导出 JSON 备份文件；导入会覆盖当前记录，备份中不含 AI Key 与外观偏好。
-- **按需联网**：只有手动查询天气（Open-Meteo / Nominatim）或你明确发送 AI 请求时才出站；CSP 的 `connect-src` 只放行 HTTPS 与本地回环地址。
-- **CSP**：`index.html` 与构建后的 `dist/index.html` 都带 `Content-Security-Policy`——脚本仅允许带 nonce 的引导脚本与同源打包产物，`object-src` / `frame-ancestors` / `form-action` 关闭。
+- **数据备份**：清理浏览器站点数据或更换设备前，可通过「设置 → 数据与备份」导出主状态 JSON；导入会覆盖主状态记录。该导出不是整站备份，不含 AI 配置与会话、外观与看板布局、日报草稿，以及扩展存储中的子任务、周期规则、预算和日报归档。
+- **可选联网**：天气使用 Open-Meteo / Nominatim，支持手动搜索与主动定位；已保存城市与坐标时，启动会刷新天气，定位本身由用户触发。AI 对话、连接测试与手动模型探测会请求配置的 API；保存有效 AI 配置后默认读取 `/models`，可在设置中关闭。CSP 的 `connect-src` 放行同源、任意 HTTPS 地址与 HTTP 本地回环地址，并非按服务商域名限定。
+- **离线范围**：生产版通过 Service Worker 缓存应用外壳及已加载的同源资源，完成首次在线加载与缓存后可离线使用本地功能；天气与远端 AI 请求不纳入离线缓存。
+- **CSP**：[index.html](index.html) 与构建后的 `dist/index.html` 使用 `Content-Security-Policy` meta，允许同源脚本与带 nonce 的引导脚本，关闭 `object-src`、`frame-src` 和 `form-action`。`frame-src` 限制本页嵌入子框架，不限制外站嵌入本页；防嵌套所需的 `frame-ancestors` 只在 HTTP 响应头中生效，当前 meta 不提供这项保护。
 - **AI Key 是明文**：保存在 `localStorage`，同源脚本与共享设备可读，不要填入生产凭据；可随时在设置里一键清除。
 
 ## 相关文档
