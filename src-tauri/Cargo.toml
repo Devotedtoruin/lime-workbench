@@ -1,0 +1,18 @@
+[package]
+name = "lime-workbench"
+version = "1.0.0"
+description = "青柠工作台 · 本地优先个人工作台"
+authors = []
+edition = "2021"
+license = "MIT"
+rust-version = "1.77.2"
+
+[lib]
+name = "lime_workbench_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }

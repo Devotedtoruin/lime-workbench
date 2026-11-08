@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#f8fafc">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0a0e1a">
+<meta name="description" content="青柠工作台 · 本地优先的个人工作与日常事务协同平台，集成任务排期、番茄专注、班次管理、结构化日报与收支账本。">
+<meta property="og:title" content="青柠工作台 · 今天">
+<meta property="og:description" content="青柠工作台 · 本地优先的个人工作与日常事务协同平台，集成任务排期、番茄专注、班次管理、结构化日报与收支账本。">
+<title>青柠工作台 · 今天</title>
+
+<!-- Relative paths: the same build has to work at a domain root and under a sub-path such as
+     https://user.github.io/lime-workbench/ . Leading slashes break the latter. -->
+<link rel="icon" type="image/svg+xml" href="assets/brand.svg">
+<link rel="icon" type="image/png" sizes="192x192" href="pwa-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<!-- The manifest URL must stay unhashed: its icon paths are relative to it. See vite.config.js. -->
+<link rel="manifest" href="manifest.webmanifest">
+
+<!-- iOS standalone: without these, a home-screen launch opens inside Safari with browser chrome. -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="青柠工作台">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="format-detection" content="telephone=no">
+<!-- lime:csp -->
+<script data-lime-boot nonce="V1n2acG-afR5WcpIoKqsYQ">!function(){try{var m={"light":"#f8fafc","dark":"#0a0e1a"},t=localStorage.getItem('lime-appearance-v2'),v=t?JSON.parse(t).theme:'system',d=v==='dark'||(v==='system'&&matchMedia('(prefers-color-scheme:dark)').matches),a=document.querySelectorAll('meta[name="theme-color"]');for(var i=0;i<a.length;i++)a[i].content=m[d?'dark':'light'];window.__limeCspNonce="V1n2acG-afR5WcpIoKqsYQ";var s=document.createElement('style');s.setAttribute('nonce',"V1n2acG-afR5WcpIoKqsYQ");s.textContent='html{color-scheme:'+(d?'dark':'light')+'}';document.head.appendChild(s)}catch(e){}}();</script>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'nonce-V1n2acG-afR5WcpIoKqsYQ' 'sha256-yUybRPaBtHgunsTobteUf8h/lXWSSpB3RX0jJDWdXhI='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; font-src 'self' data: blob:; connect-src 'self' https: http://localhost:* http://127.0.0.1:*; worker-src 'self'; manifest-src 'self'; object-src 'none'; frame-src 'none'; base-uri 'self'; form-action 'none'">
+<!-- lime:csp -->
+</head>
+<body>
+<div id="app"></div>
+<script type="module" src="src/main.js"></script>
+</body>
+</html>
