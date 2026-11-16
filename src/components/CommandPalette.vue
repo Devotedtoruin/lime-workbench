@@ -1,7 +1,7 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { asset } from '../lib/assets.js';
-import { useWorkbench } from '../composables/useWorkbench.js';
+import { useWorkbench, PAGE_LABELS } from '../composables/useWorkbench.js';
 import { understand, askLLM, normalizeAction, isLLMReady, loadAgentConfig, resolveAgentEndpoint, looksLikeAssistantRequest, loadAgentSession, saveAgentSession, clearAgentSession } from '../../js/agent.js';
 import { parseCommandList, preview } from '../../js/command.js';
 import { searchAll, KIND_LABELS } from '../../js/search.js';
@@ -45,15 +45,16 @@ const sending = ref(false);
 const includeSummary = ref(false);
 const suggestions = ['/help', '明天 15:00 提交周报', '午餐 32 元', '骑行 30 分钟', '开始专注 45 分钟', '便签：版本发布清单'];
 
+const llmReady = computed(() => isLLMReady());
 const slashHelp = computed(() => matchSlashHelp(input.value));
-const canSendAI = computed(() => needLLM.value && isLLMReady() && !slashHelp.value);
+const canSendAI = computed(() => needLLM.value && llmReady.value && !slashHelp.value);
 
 function applyExample(val) {
   input.value = val;
   nextTick(() => inputEl.value?.focus());
 }
 
-const SHORTCUT_PAGES = { sport: '运动', habits: '健康打卡', study: '专注', calendar: '日历与提醒', todo: '待办' };
+const SHORTCUT_PAGES = PAGE_LABELS;
 
 /** resolveLocalShortcut 产出的形状是 { kind: 'prefill' | 'navigate', page, payload }。 */
 function describeShortcut(sc) {
@@ -69,7 +70,10 @@ function describeShortcut(sc) {
 
 const results = computed(() => {
   if (slashHelp.value) return [];
-  return searchAll(input.value, wb.state, { today: wb.todayStr.value });
+  return searchAll(input.value, wb.state, {
+    today: wb.todayStr.value,
+    projects: wb.projectsList.value
+  });
 });
 const activeIndex = ref(0);
 const showResults = computed(() => results.value.length > 0);
@@ -83,7 +87,7 @@ function moveActive(delta) {
 }
 
 function openResult(item) {
-  wb.goto(item.page);
+  wb.openEntity(item);
   close();
 }
 
@@ -148,16 +152,19 @@ function execute() {
 async function sendAI() {
   if (!canSendAI.value || sending.value) return;
   const cfg = loadAgentConfig();
-  let endpoint;
-  try { endpoint = resolveAgentEndpoint(cfg); } catch (error) { reply.value = error.message; return; }
+  try { resolveAgentEndpoint(cfg); } catch (error) { reply.value = error.message; return; }
   const question = input.value.trim();
   const history = chatHistory.value.slice(-8);
   sending.value = true;
   try {
     const res = await askLLM(question, cfg, includeSummary.value ? wb.state : null, { history });
-    const answer = res?.reply || 'AI 没有返回内容，本地规则与检索仍可正常使用。';
+    if (!res || res.error) {
+      reply.value = res?.reply || 'AI 请求失败，请检查接口配置与网络连接';
+      return;
+    }
+    const actions = (Array.isArray(res.actions) ? res.actions : []).map(normalizeAction).filter(Boolean);
+    const answer = res.reply?.trim() || (actions.length ? `已生成 ${actions.length} 项建议操作，请确认后执行` : 'AI 没有返回有效内容');
     reply.value = answer;
-    const actions = (Array.isArray(res?.actions) ? res.actions : []).map(normalizeAction).filter(Boolean);
     if (actions.length) intents.value = actions;
     chatHistory.value.push({ role: 'user', content: question }, { role: 'assistant', content: answer });
     if (chatHistory.value.length > 20) chatHistory.value = chatHistory.value.slice(-20);
@@ -316,10 +323,11 @@ function onKeydown(event) {
 
         <div class="command-foot">
           <span><kbd>↵</kbd> 确认 <kbd>↑↓</kbd> 选择结果 <kbd>Esc</kbd> 关闭</span>
-          <span class="command-session">
+          <span v-if="llmReady || sessionCount" class="command-session">
             AI 会话 #{{ sessionId }} · {{ sessionCount }} 轮
             <button v-if="sessionCount" type="button" class="session-reset" @click="resetSession">新会话</button>
           </span>
+          <span v-else class="command-session">本地语义与检索就绪</span>
         </div>
       </section>
     </div>

@@ -4,10 +4,40 @@ import { asset } from '../lib/assets.js';
 import { useWorkbench } from '../composables/useWorkbench.js';
 import { readLocalImage } from '../../js/media.js';
 import { DEFAULT_AGENT, loadAgentConfig, saveAgentConfig, validateAgentConfig, isLLMReady, checkAgentConnection, listAgentModels, resetAgentConfig, clearAgentSession } from '../../js/agent.js';
+import { getRolePresetLinks } from '../../js/roles.js';
 
 const wb = useWorkbench();
 
+const PAGE_NAMES = {
+  home: '今天',
+  todo: '任务',
+  projects: '项目',
+  study: '专注',
+  standup: '日报',
+  calendar: '日历',
+  bookmarks: '网址导航',
+  notes: '知识库',
+  toolbox: '工具箱',
+  ledger: '账本',
+  habits: '习惯',
+  sport: '运动',
+  weather: '天气',
+  me: '设置'
+};
+
+const roleOptions = computed(() => wb.ROLE_IDS.map(id => wb.ROLE_PROFILES[id]));
+const roleImportLinks = ref(true);
+
+function pickRoleInSettings(roleId) {
+  wb.applyRoleFrame(roleId, { applyLayout: true, seedLinks: roleImportLinks.value });
+}
+
+function importRoleWebsitesOnly() {
+  wb.importWebsitePresets(getRolePresetLinks(wb.currentRole.value.id));
+}
+
 const settingsSections = [
+  { id: 'settings-role', label: '角色' },
   { id: 'settings-identity', label: '形象' },
   { id: 'settings-appearance', label: '外观' },
   { id: 'settings-goals', label: '目标' },
@@ -228,7 +258,6 @@ function applyTomorrow(template) {
 const savedAgent = loadAgentConfig();
 const agent = reactive({ ...savedAgent });
 const agentStatus = ref(isLLMReady(savedAgent) ? '已配置' : '本地模式（未启用 AI）');
-const agentTestKey = ref('');
 const agentTesting = ref(false);
 const agentModelsBusy = ref(false);
 const discoveredModels = ref([]);
@@ -239,12 +268,12 @@ const agentResult = ref('尚未验证；可先点击「探测可用模型」或�
 async function loadAgentModels() {
   if (agentModelsBusy.value) return;
   const candidate = { ...agent, provider: inferProviderFromInput() };
-  const validation = validateAgentConfig({ ...candidate, apiKey: agentTestKey.value || agent.apiKey }, { requireKey: true });
+  const validation = validateAgentConfig({ ...candidate, apiKey: agent.apiKey }, { requireKey: true });
   if (!validation.valid) { agentModelsReply.value = validation.reply; return; }
   agentModelsBusy.value = true;
   agentModelsReply.value = '正在拉取模型…';
   try {
-    const result = await listAgentModels({ ...candidate, apiKey: agentTestKey.value || agent.apiKey });
+    const result = await listAgentModels({ ...candidate, apiKey: agent.apiKey });
     discoveredModels.value = (result.models || []).slice(0, 36);
     agentModelsReply.value = result.reply || (result.ok ? '已拉取模型。' : '拉取失败。');
     if (result.ok && discoveredModels.value.length && !discoveredModels.value.includes(agent.model.trim())) {
@@ -257,16 +286,22 @@ async function loadAgentModels() {
 }
 
 function clearAllAgent() {
-  if (!window.confirm('确定清除 AI 服务地址、模型、API Key、自定义人设和当前 AI 会话？此操作不可撤销。')) return;
-  if (!resetAgentConfig()) { wb.showToast('清除失败：本机存储不可用'); return; }
-  clearAgentSession();
-  Object.assign(agent, { ...DEFAULT_AGENT });
-  discoveredModels.value = [];
-  agentModelsReply.value = '';
-  agentTestKey.value = '';
-  agentResult.value = '尚未验证；保存配置不等于连接成功。';
-  agentStatus.value = '本地模式（未启用 AI）';
-  wb.showToast('已清除全部 AI 配置与当前会话');
+  wb.askConfirm({
+    title: '清除全部 AI 配置',
+    message: '确定清除 AI 服务地址、模型、API Key、自定义人设和当前 AI 会话？此操作不可撤销。',
+    confirmText: '确认清除',
+    danger: true,
+    onConfirm: () => {
+      if (!resetAgentConfig()) { wb.showToast('清除失败：本机存储不可用'); return; }
+      clearAgentSession();
+      Object.assign(agent, { ...DEFAULT_AGENT });
+      discoveredModels.value = [];
+      agentModelsReply.value = '';
+      agentResult.value = '尚未验证；保存配置不等于连接成功。';
+      agentStatus.value = '本地模式（未启用 AI）';
+      wb.showToast('已清除全部 AI 配置与当前会话');
+    }
+  });
 }
 
 watch(() => [agent.provider, agent.baseUrl, agent.apiKey], () => {
@@ -350,62 +385,9 @@ function clearAgentKey() {
   agentStatus.value = '本地模式（未启用 AI）';
   wb.showToast('已清除保存的 API Key');
 }
-async function discoverModels() {
-  if (agentModelsBusy.value) return;
-  const activeKey = (agentTestKey.value || agent.apiKey || '').trim();
-  const rawBase = (agent.baseUrl || (agent.provider === 'deepseek' ? 'https://api.deepseek.com' : agent.provider === 'openai' ? 'https://api.openai.com/v1' : '')).trim()
-    .replace(/\/chat\/completions\/?$/i, '')
-    .replace(/\/models\/?$/i, '')
-    .replace(/\/+$/, '');
-  if (!rawBase) {
-    agentResult.value = '请先填写 Base URL（如 https://api.openai.com/v1）或选择服务商。';
-    return;
-  }
-  if (!activeKey) {
-    agentResult.value = '请先在 API Key 栏填入密钥后再探测模型。';
-    return;
-  }
-  const modelsUrl = /\/v\d+$/i.test(rawBase) ? `${rawBase}/models` : `${rawBase}/v1/models`;
-  agentModelsBusy.value = true;
-  agentResult.value = `正在探测 ${modelsUrl} 可用模型…`;
-  try {
-    const res = await fetch(modelsUrl, {
-      method: 'GET',
-      headers: {
-        Authorization: `Bearer ${activeKey}`,
-        Accept: 'application/json'
-      }
-    });
-    if (!res.ok) {
-      agentResult.value = `模型列表接口返回 HTTP ${res.status}（部分中转站不支持列出 /v1/models），请直接点击下方常用模型或手动输入模型名称后点击「保存配置」。`;
-      return;
-    }
-    const data = await res.json();
-    const rawList = Array.isArray(data?.data) ? data.data : Array.isArray(data?.models) ? data.models : [];
-    const list = rawList.map(m => (typeof m === 'string' ? m : m?.id || m?.name)).filter(Boolean);
-    discoveredModels.value = list.slice(0, 36);
-    if (list.length) {
-      if (agent.provider === 'none') agent.provider = inferProviderFromInput();
-      if (!agent.model.trim() || !list.includes(agent.model.trim())) {
-        agent.model = list[0];
-      }
-      if (agent.apiKey.trim()) {
-        saveAgentConfig({ ...agent });
-        agentStatus.value = isLLMReady(loadAgentConfig()) ? '已配置' : '本地模式（未启用 AI）';
-      }
-      agentResult.value = `探测成功：发现 ${list.length} 个模型，当前已选用「${agent.model}」（点击模型标签可切换）。`;
-    } else {
-      agentResult.value = '接口响应成功但未返回模型数组，请点击下方常用模型或手动填写模型名。';
-    }
-  } catch {
-    agentResult.value = '无法拉取 /v1/models（可能被中转站禁用或跨域拦截），请直接点击下方常用模型或手动输入后点击「测试连接」。';
-  } finally {
-    agentModelsBusy.value = false;
-  }
-}
 function testAgent() {
   if (agentTesting.value) return;
-  const activeKey = (agentTestKey.value || agent.apiKey || '').trim();
+  const activeKey = (agent.apiKey || '').trim();
   const nextProvider = inferProviderFromInput();
   const config = { ...agent, provider: nextProvider === 'none' ? 'custom' : nextProvider, apiKey: activeKey, persona: DEFAULT_AGENT.persona };
   const v = validateAgentConfig(config, { requireKey: true });
@@ -472,7 +454,7 @@ function clearData() {
     <header class="page-head">
       <div>
         <h1>设置与美化</h1>
-        <p class="sub">工作台形象、主题外观与本地数据。全部只保存在本机，随时可改。</p>
+        <p class="sub">个人形象、主题外观与本机数据管理。</p>
       </div>
     </header>
 
@@ -481,6 +463,63 @@ function clearData() {
         {{ item.label }}
       </button>
     </nav>
+
+    <!-- 职业身份与模块映射 -->
+    <section id="settings-role" class="panel glass rim">
+      <div class="panel-head">
+        <div>
+          <h2 class="panel-title">职业角色与工作区模块</h2>
+          <p class="tiny role-sub-hint">不同职业身份将自动适配侧栏模块组合、移动端底栏快捷入口、首页 KPI 排序与 Bento 看板结构。</p>
+        </div>
+        <span class="badge badge-brand">{{ wb.currentRole.value.name }}</span>
+      </div>
+
+      <div class="role-cards-grid">
+        <button
+          v-for="r in roleOptions"
+          :key="r.id"
+          type="button"
+          class="role-setting-card"
+          :class="{ 'is-active': wb.currentRole.value.id === r.id }"
+          @click="pickRoleInSettings(r.id)"
+        >
+          <div class="role-card-top">
+            <img :src="asset(`assets/icons/${r.icon}.svg`)" alt="" />
+            <strong>{{ r.name }}</strong>
+            <span class="role-card-tag">{{ r.badge }}</span>
+          </div>
+          <p class="role-card-desc">{{ r.tagline }}</p>
+          <p class="role-card-modules">
+            映射模块：{{ r.navPages.filter(p => p !== 'me').map(p => PAGE_NAMES[p] || p).join(' · ') }}
+          </p>
+        </button>
+      </div>
+
+      <div class="role-settings-controls">
+        <label class="role-inline-check">
+          <input
+            type="checkbox"
+            class="checkbox"
+            :checked="wb.extState.showAllModules"
+            @change="wb.toggleShowAllModules()"
+          />
+          <span>侧栏始终显示全部 14 个模块（关闭时仅展示当前职业常用模块）</span>
+        </label>
+        <label class="role-inline-check">
+          <input v-model="roleImportLinks" type="checkbox" class="checkbox" />
+          <span>切换角色时同步导入该角色推荐的常用网站</span>
+        </label>
+      </div>
+
+      <div class="actions-row">
+        <button class="btn btn-soft btn-sm" type="button" @click="wb.resetBlocksLayout()">
+          <img :src="asset('assets/icons/rotate-ccw.svg')" alt="" />重新应用「{{ wb.currentRole.value.name }}」默认首页布局
+        </button>
+        <button class="btn btn-soft btn-sm" type="button" @click="importRoleWebsitesOnly">
+          <img :src="asset('assets/icons/arrow-up-right.svg')" alt="" />导入当前角色推荐网站
+        </button>
+      </div>
+    </section>
 
     <!-- 形象 -->
     <section id="settings-identity" class="panel glass rim">
@@ -522,8 +561,8 @@ function clearData() {
           <input v-model="identity.displayName" class="input" maxlength="80" placeholder="留空只显示通用问候" />
         </label>
         <label class="field">
-          <span>图片缺失时的文字 / 表情</span>
-          <input v-model="identity.avatar" class="input" maxlength="32" placeholder="如：我、青柠、一个表情" />
+          <span>图片缺失时的文字头像</span>
+          <input v-model="identity.avatar" class="input" maxlength="32" placeholder="如：我、青柠、LM" />
         </label>
       </div>
       <p class="tiny">图片优先，文字作回退。支持 PNG、JPEG、WebP，头像会自动压缩为 256px 并为本地保存。</p>
@@ -660,8 +699,8 @@ function clearData() {
 
       <div class="wallpaper-row">
         <div>
-          <p class="group-label" style="margin: 0 0 4px">桌面壁纸</p>
-          <p class="tiny" style="margin: 0">选择本地图片作为桌面背景，只保存在本机，记录备份不包含。</p>
+          <p class="group-label wallpaper-label">桌面壁纸</p>
+          <p class="tiny wallpaper-tiny">选择本地图片作为桌面背景，只保存在本机，记录备份不包含。</p>
         </div>
         <div class="wallpaper-actions">
           <label class="btn btn-soft btn-sm file-btn" tabindex="0" role="button" aria-label="选择壁纸" @keydown.enter.prevent="bgInput?.click()" @keydown.space.prevent="bgInput?.click()">
@@ -822,7 +861,7 @@ function clearData() {
     <!-- 数据 -->
     <section id="settings-data" class="panel glass rim">
       <div class="panel-head"><h2 class="panel-title">数据与备份</h2></div>
-      <p class="tiny">当前数据保存在这个浏览器的本地存储。备份只包含工作台记录，不包含 AI Key 或外观偏好。</p>
+      <p class="tiny">数据保存在本机浏览器。导出为完整备份包（含任务、账本、习惯、看板布局、预算、子步骤与外观偏好，不包含 AI 密钥）。</p>
       <div class="actions-row">
         <button class="btn btn-soft btn-sm" type="button" @click="wb.exportBackupData()">
           <img :src="asset('assets/icons/download.svg')" alt="" />导出备份
@@ -949,6 +988,9 @@ section[id^="settings-"] { scroll-margin-top: 140px; }
 .range:hover::-webkit-slider-thumb { transform: scale(1.12); }
 
 .wallpaper-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--line); }
+.wallpaper-label { margin: 0 0 4px; }
+.wallpaper-tiny { margin: 0; }
+.role-sub-hint { margin: 2px 0 0; }
 .wallpaper-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 
 .shift-section { display: grid; gap: 14px; margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--line); }
@@ -976,8 +1018,6 @@ section[id^="settings-"] { scroll-margin-top: 140px; }
 .ai-auto { display: flex; align-items: flex-start; gap: 8px; margin-top: 10px; font-size: var(--text-meta); color: var(--muted); line-height: 1.6; }
 .ai-auto .checkbox { margin-top: 2px; }
 .ai-auto code { font-size: 0.95em; color: var(--ink-soft); }
-.test-row { display: flex; gap: 8px; margin: 8px 0; }
-.test-row .input { flex: 1; min-width: 0; }
 .model-input-row { display: flex; gap: 8px; align-items: center; }
 .model-input-row .input { flex: 1; min-width: 0; }
 .discovered-models { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
@@ -991,16 +1031,49 @@ section[id^="settings-"] { scroll-margin-top: 140px; }
   border-color: var(--brand); background: var(--brand-pale); color: var(--brand-deep); font-weight: 600;
 }
 
+.role-cards-grid {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px;
+}
+.role-setting-card {
+  display: flex; flex-direction: column; gap: 6px; text-align: left;
+  padding: 12px 14px; border-radius: 12px;
+  border: 1px solid var(--line); background: var(--surface-soft);
+  color: var(--ink);
+  transition: border-color var(--motion-fast), background-color var(--motion-fast);
+}
+.role-setting-card:hover { border-color: var(--line-strong); background: var(--surface); }
+.role-setting-card.is-active {
+  border-color: var(--brand); background: var(--brand-pale);
+}
+.role-card-top { display: flex; align-items: center; gap: 7px; }
+.role-card-top img { width: 16px; height: 16px; opacity: .8; }
+.role-card-top strong { font-size: var(--text-body); font-weight: 700; color: var(--ink); }
+.role-card-tag {
+  margin-left: auto; font-size: 11px; font-weight: 600; color: var(--muted);
+}
+.role-setting-card.is-active .role-card-tag { color: var(--brand-deep); }
+.role-card-desc { margin: 0; font-size: var(--text-meta); color: var(--ink-soft); line-height: 1.5; }
+.role-card-modules { margin: 0; font-size: 11.5px; color: var(--muted); line-height: 1.45; }
+.role-settings-controls {
+  display: flex; flex-direction: column; gap: 8px;
+  margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line);
+}
+.role-inline-check {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: var(--text-sm); color: var(--ink-soft); cursor: pointer;
+}
+
 @media (max-width: 1000px) {
+  .role-cards-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .identity-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .shift-form { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 @media (max-width: 640px) {
+  .role-cards-grid { grid-template-columns: minmax(0, 1fr); }
   .shift-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .shift-row { align-items: flex-start; flex-direction: column; }
   .shift-date { width: 100%; }
   .preset-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .identity-grid { grid-template-columns: minmax(0, 1fr); }
-  .test-row { flex-direction: column; }
 }
 </style>

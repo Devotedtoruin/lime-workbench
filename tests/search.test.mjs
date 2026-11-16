@@ -100,7 +100,31 @@ test('long bodies are clipped rather than dumped into the palette', () => {
 });
 
 test('every kind has a display label', () => {
-  for (const kind of ['task', 'note', 'ledger', 'reminder', 'link', 'sport']) {
+  for (const kind of ['task', 'note', 'project', 'ledger', 'reminder', 'link', 'sport']) {
     assert.ok(KIND_LABELS[kind], `${kind} needs a label`);
   }
+});
+
+test('projects are searchable and note/project hits carry entityId', () => {
+  const withProjects = {
+    ...state,
+    projects: [
+      {
+        id: 'proj-1',
+        name: '小程序重构上线',
+        meta: 'Q4 交付',
+        target: '完成全端灰度发布',
+        milestones: [{ id: 'm1', text: '性能压测通过', done: false }]
+      }
+    ]
+  };
+  const noteHit = searchAll('灰度', withProjects, opts).find(r => r.kind === 'note');
+  assert.equal(noteHit?.entityId, 11);
+
+  const projHitByName = searchAll('小程序', withProjects, opts).find(r => r.kind === 'project');
+  assert.equal(projHitByName?.page, 'projects');
+  assert.equal(projHitByName?.entityId, 'proj-1');
+
+  const projHitByMs = searchAll('压测', withProjects, opts).find(r => r.kind === 'project');
+  assert.equal(projHitByMs?.entityId, 'proj-1');
 });

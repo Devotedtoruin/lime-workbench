@@ -1,23 +1,41 @@
 import { defineConfig } from 'vite';
 import vue from '@vitejs/plugin-vue';
-import { cpSync, existsSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { cpSync, createReadStream, existsSync, statSync } from 'node:fs';
+import { extname, resolve, sep } from 'node:path';
 import { execFileSync } from 'node:child_process';
 
-function syncAssetDirectories() {
-  const root = process.cwd();
-  const srcAssets = resolve(root, 'assets');
-  if (!existsSync(srcAssets)) return;
-  cpSync(srcAssets, resolve(root, 'public/assets'), { recursive: true });
-}
+const ASSET_MIME = {
+  '.svg': 'image/svg+xml; charset=utf-8',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.webp': 'image/webp',
+  '.json': 'application/json; charset=utf-8'
+};
 
-// The hand-made SVG/PNG library lives in /assets (icons, weather images). Ensure it is always
-// present in public/assets (for dev server) and dist/assets (for production builds).
+// The hand-made SVG/PNG library lives in /assets (icons, weather images). Serve it directly
+// during dev without duplicating files into public/assets, and copy into dist/assets on build.
 function copyAssets() {
   return {
     name: 'lime-copy-assets',
-    configResolved() {
-      syncAssetDirectories();
+    configureServer(server) {
+      const assetsRoot = resolve(process.cwd(), 'assets');
+      server.middlewares.use('/assets', (req, res, next) => {
+        if (!req.url || !['GET', 'HEAD'].includes(req.method || 'GET')) return next();
+        const rawPath = decodeURIComponent(req.url.split('?')[0]).replace(/^\/+/, '');
+        const filePath = resolve(assetsRoot, rawPath);
+        if (filePath !== assetsRoot && !filePath.startsWith(assetsRoot + sep)) return next();
+        if (!existsSync(filePath) || !statSync(filePath).isFile()) return next();
+        const ext = extname(filePath).toLowerCase();
+        if (ASSET_MIME[ext]) res.setHeader('Content-Type', ASSET_MIME[ext]);
+        res.setHeader('Cache-Control', 'no-cache');
+        if (req.method === 'HEAD') {
+          res.statusCode = 200;
+          res.end();
+          return;
+        }
+        createReadStream(filePath).pipe(res);
+      });
     },
     closeBundle() {
       const root = process.cwd();

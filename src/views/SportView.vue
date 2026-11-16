@@ -1,11 +1,13 @@
 <script setup>
-import { computed, onMounted, reactive } from 'vue';
+import { computed, onMounted, reactive, ref } from 'vue';
 import { asset } from '../lib/assets.js';
 import { useWorkbench, SPORTS } from '../composables/useWorkbench.js';
 
 const wb = useWorkbench();
 
 const form = reactive({ type: 'run', minutes: '', distance: '' });
+const sportError = ref('');
+const sportErrorField = ref('');
 
 onMounted(() => {
   const prefill = wb.consumePrefill('sport');
@@ -42,7 +44,21 @@ const recent = computed(() =>
 );
 
 function save() {
-  if (wb.addSportRecord({ type: form.type, minutes: form.minutes, distance: form.distance || 0 })) {
+  sportError.value = '';
+  sportErrorField.value = '';
+  const mins = Number(form.minutes);
+  const dist = form.distance === '' ? 0 : Number(form.distance);
+  if (!String(form.minutes).trim() || !Number.isFinite(mins) || mins < 1 || mins > 1440) {
+    sportError.value = '请填写 1–1440 分钟的有效运动时长';
+    sportErrorField.value = 'minutes';
+    return;
+  }
+  if (!Number.isFinite(dist) || dist < 0 || dist > 1000) {
+    sportError.value = '距离需在 0–1000 公里之间';
+    sportErrorField.value = 'distance';
+    return;
+  }
+  if (wb.addSportRecord({ type: form.type, minutes: mins, distance: dist })) {
     form.minutes = '';
     form.distance = '';
   }
@@ -55,7 +71,7 @@ function sportOf(type) { return SPORTS.find(s => s.id === type) || SPORTS[0]; }
     <header class="page-head">
       <div>
         <h1>运动记录</h1>
-        <p class="sub">记录单次运动的时长与距离；每日总步数在生活习惯中更新。</p>
+        <p class="sub">记录单次运动时长与距离。</p>
       </div>
       <span class="privacy"><img :src="asset('assets/icons/shield-check.svg')" alt="" />手动记录 · 不采集传感器</span>
     </header>
@@ -84,22 +100,23 @@ function sportOf(type) { return SPORTS.find(s => s.id === type) || SPORTS[0]; }
           </button>
         </div>
 
-        <form class="sport-form" @submit.prevent="save">
+        <form class="sport-form" novalidate @submit.prevent="save">
           <label class="field">
             <span>时长</span>
-            <span class="unit-wrap">
-              <input v-model="form.minutes" type="number" min="0.01" max="1440" step="0.01" inputmode="decimal" required placeholder="30" />
+            <span class="unit-wrap" :class="{ 'is-invalid': sportErrorField === 'minutes' }">
+              <input v-model="form.minutes" type="number" min="1" max="1440" step="0.5" inputmode="decimal" placeholder="30" @input="sportError = ''; sportErrorField = ''" />
               <i>分钟</i>
             </span>
           </label>
           <label class="field">
             <span>距离 <small>可选</small></span>
-            <span class="unit-wrap">
-              <input v-model="form.distance" type="number" min="0" max="1000" step="0.1" inputmode="decimal" placeholder="5.0" />
+            <span class="unit-wrap" :class="{ 'is-invalid': sportErrorField === 'distance' }">
+              <input v-model="form.distance" type="number" min="0" max="1000" step="0.1" inputmode="decimal" placeholder="5.0" @input="sportError = ''; sportErrorField = ''" />
               <i>公里</i>
             </span>
           </label>
           <button class="btn btn-primary" type="submit">保存运动</button>
+          <p v-if="sportError" class="field-error sport-error">{{ sportError }}</p>
         </form>
         <p class="tiny"><img :src="asset('assets/icons/info.svg')" alt="" />卡路里仅为估算，不是健康或医疗建议。</p>
       </section>
@@ -163,6 +180,7 @@ function sportOf(type) { return SPORTS.find(s => s.id === type) || SPORTS[0]; }
 .sport-pick img { width: 26px; height: 26px; object-fit: contain; }
 
 .sport-form { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; gap: 10px; align-items: end; }
+.sport-error { grid-column: 1 / -1; margin-top: 0; }
 .unit-wrap { display: flex; align-items: center; gap: 6px; min-height: 42px; padding: 0 12px; border: 1px solid var(--line-strong); border-radius: var(--radius-control); background: var(--surface); }
 .unit-wrap:focus-within { border-color: var(--brand); box-shadow: var(--ring); }
 .unit-wrap input { flex: 1; min-width: 0; border: 0; background: transparent; outline: none; font-size: var(--text-body); font-variant-numeric: tabular-nums; }

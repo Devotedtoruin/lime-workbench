@@ -7,15 +7,24 @@ const props = defineProps({
   itemHeight: { type: Number, default: 68 },
   buffer: { type: Number, default: 6 },
   threshold: { type: Number, default: 80 },
-  maxHeight: { type: String, default: '620px' },
+  maxHeight: { type: [String, Number], default: '620px' },
+  tag: { type: String, default: 'div' },
   listClass: { type: String, default: '' },
+  rowClass: { type: Function, default: null },
   animName: { type: String, default: 'list-anim' }
 });
 
 const containerRef = ref(null);
+const flatListRef = ref(null);
 const scrollTop = ref(0);
 const viewportHeight = ref(560);
 let rafId = 0;
+
+const resolvedMaxHeight = computed(() =>
+  typeof props.maxHeight === 'number' ? `${props.maxHeight}px` : props.maxHeight
+);
+
+const itemTag = computed(() => (props.tag === 'ul' || props.tag === 'ol' ? 'li' : 'div'));
 
 const isVirtual = computed(() => Array.isArray(props.items) && props.items.length > props.threshold);
 
@@ -55,6 +64,32 @@ function onScroll(event) {
   });
 }
 
+function scrollToIndex(index) {
+  const idx = Number(index);
+  if (!Number.isInteger(idx) || idx < 0 || idx >= props.items.length) return;
+  if (isVirtual.value && containerRef.value) {
+    const viewport = containerRef.value;
+    const itemTop = idx * props.itemHeight;
+    const itemBottom = itemTop + props.itemHeight;
+    if (itemTop < viewport.scrollTop) {
+      viewport.scrollTop = itemTop;
+      scrollTop.value = itemTop;
+    } else if (itemBottom > viewport.scrollTop + viewport.clientHeight) {
+      const nextTop = Math.max(0, itemBottom - viewport.clientHeight);
+      viewport.scrollTop = nextTop;
+      scrollTop.value = nextTop;
+    }
+    return;
+  }
+  const rootEl = flatListRef.value?.$el;
+  if (rootEl && typeof rootEl.querySelector === 'function') {
+    const target = rootEl.querySelector(`[data-vlist-index="${idx}"]`);
+    target?.scrollIntoView?.({ block: 'nearest' });
+  }
+}
+
+defineExpose({ scrollToIndex });
+
 watch(
   () => props.items.length,
   len => {
@@ -75,30 +110,48 @@ onBeforeUnmount(() => {
     v-if="isVirtual"
     ref="containerRef"
     class="virtual-scroll-viewport"
-    :style="{ maxHeight }"
+    :style="{ maxHeight: resolvedMaxHeight }"
     @scroll.passive="onScroll"
   >
     <div class="virtual-scroll-spacer" :style="{ height: `${totalHeight}px` }">
-      <div class="virtual-scroll-content" :class="listClass" :style="{ transform: `translate3d(0, ${offsetY}px, 0)` }">
-        <div
+      <component
+        :is="tag"
+        class="virtual-scroll-content"
+        :class="listClass"
+        :style="{ transform: `translate3d(0, ${offsetY}px, 0)` }"
+      >
+        <component
+          :is="itemTag"
           v-for="entry in visibleItems"
           :key="entry.key"
+          :data-vlist-index="entry.index"
           class="virtual-scroll-item"
+          :class="rowClass ? rowClass(entry.item, entry.index) : null"
         >
           <slot :item="entry.item" :index="entry.index" />
-        </div>
-      </div>
+        </component>
+      </component>
     </div>
   </div>
 
-  <TransitionGroup v-else tag="div" :name="animName" class="virtual-flat-list" :class="listClass">
-    <div
+  <TransitionGroup
+    v-else
+    ref="flatListRef"
+    :tag="tag"
+    :name="animName"
+    class="virtual-flat-list"
+    :class="listClass"
+  >
+    <component
+      :is="itemTag"
       v-for="(item, index) in items"
       :key="item?.[keyField] ?? index"
+      :data-vlist-index="index"
       class="virtual-flat-item"
+      :class="rowClass ? rowClass(item, index) : null"
     >
       <slot :item="item" :index="index" />
-    </div>
+    </component>
   </TransitionGroup>
 </template>
 
@@ -117,13 +170,11 @@ onBeforeUnmount(() => {
 .virtual-scroll-content {
   display: flex;
   flex-direction: column;
-  gap: 8px;
   will-change: transform;
 }
 .virtual-flat-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
   position: relative;
 }
 .virtual-flat-item,

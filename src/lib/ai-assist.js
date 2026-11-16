@@ -11,9 +11,10 @@ import {
   validateAgentConfig,
   isLLMReady,
   askLLM,
+  requestChatCompletion,
   normalizeAction
 } from '../../js/agent.js';
-import { parseCommand, preview as previewIntent } from '../../js/command.js';
+import { parseCommand, parseCommandList, preview as previewIntent } from '../../js/command.js';
 
 export const STANDUP_POLISH_STYLES = [
   { id: 'report', label: '工作汇报', desc: '结构严谨、突出关键产出与业务价值' },
@@ -32,51 +33,21 @@ export function getAIStatus() {
 }
 
 async function callJsonChat({ systemPrompt, userPrompt, maxTokens = 600, timeoutMs = 20000 }) {
-  const cfg = loadAgentConfig();
-  const v = validateAgentConfig(cfg, { requireKey: true });
-  if (!v.valid) {
-    return { ok: false, unconfigured: true, error: v.reply || '尚未配置有效的接口密钥' };
+  const res = await requestChatCompletion({
+    systemPrompt,
+    userPrompt,
+    maxTokens,
+    timeoutMs,
+    temperature: 0.2
+  });
+  if (!res.ok) {
+    return {
+      ok: false,
+      unconfigured: Boolean(res.unconfigured),
+      error: res.reply || '无法连接远端服务'
+    };
   }
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    // 与 js/agent.js 一致：不跟随跨域重定向、不带凭据、不透传 Referer，
-    // 避免重定向把 Bearer Key 转发到未配置的主机。
-    const res = await fetch(v.endpoint, {
-      method: 'POST',
-      redirect: 'error',
-      credentials: 'omit',
-      referrerPolicy: 'no-referrer',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${cfg.apiKey.trim()}`
-      },
-      body: JSON.stringify({
-        model: v.model,
-        temperature: 0.2,
-        max_tokens: maxTokens,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt }
-        ]
-      }),
-      signal: controller.signal
-    });
-    if (!res.ok) {
-      return { ok: false, error: `接口响应 HTTP ${res.status}` };
-    }
-    const body = await res.json();
-    const content = body?.choices?.[0]?.message?.content;
-    if (typeof content !== 'string' || !content.trim()) {
-      return { ok: false, error: '接口返回内容为空' };
-    }
-    return { ok: true, content: content.trim() };
-  } catch (err) {
-    const msg = err?.name === 'AbortError' ? '服务请求超时' : '无法连接远端服务';
-    return { ok: false, error: msg };
-  } finally {
-    clearTimeout(timer);
-  }
+  return { ok: true, content: res.content.trim() };
 }
 
 function extractJsonObject(raw) {
@@ -110,6 +81,7 @@ export async function parseOmniboxWithAI(text, state) {
   if (!clean) return { ok: false, error: '请输入指令内容' };
 
   const status = getAIStatus();
+  let llmError = '';
   if (status.configured && isLLMReady()) {
     const cfg = loadAgentConfig();
     const res = await askLLM(clean, cfg, state);
@@ -120,6 +92,8 @@ export async function parseOmniboxWithAI(text, state) {
       return {
         ok: true,
         mode: 'llm',
+        llmFailed: false,
+        errorReason: '',
         reply: res.reply || `已解析出 ${normalizedActions.length} 项可执行动作`,
         hint: '',
         actions: normalizedActions.map(act => ({
@@ -128,34 +102,46 @@ export async function parseOmniboxWithAI(text, state) {
         }))
       };
     }
+    llmError = res?.error
+      ? (res.reply || '外部 AI 接口未响应')
+      : '外部 AI 未返回有效解析结果';
   }
 
-  // 本地复合语句拆解：按连接词拆分为多个独立子句逐一通过 parseCommand 识别
-  const segments = splitCompositeSegments(clean);
-  const actions = [];
+  // 本地复合语句拆解：优先使用边界安全的 parseCommandList，再回退连接词拆分
   const now = new Date();
-  for (const seg of segments.slice(0, 6)) {
-    const intent = parseCommand(seg, now);
-    if (intent) {
-      actions.push({
-        ...intent,
-        summary: previewIntent(intent)
-      });
+  const listIntents = parseCommandList(clean, now);
+  const actions = [];
+  if (listIntents.length > 1) {
+    for (const intent of listIntents.slice(0, 8)) {
+      actions.push({ ...intent, summary: previewIntent(intent) });
+    }
+  } else {
+    const segments = splitCompositeSegments(clean);
+    for (const seg of segments.slice(0, 6)) {
+      const intent = parseCommand(seg, now);
+      if (intent) {
+        actions.push({ ...intent, summary: previewIntent(intent) });
+      }
+    }
+    if (!actions.length) {
+      const single = parseCommand(clean, now);
+      if (single) {
+        actions.push({ ...single, summary: previewIntent(single) });
+      }
     }
   }
-  if (!actions.length) {
-    const single = parseCommand(clean, now);
-    if (single) {
-      actions.push({ ...single, summary: previewIntent(single) });
-    }
-  }
+
   return {
     ok: actions.length > 0,
     mode: 'local',
-    reply: status.configured
-      ? '已通过本地语义规则拆解复合指令'
-      : '已通过本地语义引擎拆解指令（可在「设置 → AI」配置接口启用深度推理）',
-    hint: status.configured ? '' : '当前为本地规则解析模式，配置 API Key 后支持长难句跨模块推理。',
+    llmFailed: Boolean(llmError),
+    errorReason: llmError,
+    reply: llmError
+      ? `外部 AI 调用失败（${llmError}），已由本地规则兜底拆解`
+      : (status.configured
+          ? '已通过本地语义规则拆解复合指令'
+          : '已通过本地语义引擎拆解指令（可在「设置 → AI」配置接口启用深度推理）'),
+    hint: llmError || (status.configured ? '' : '当前为本地规则解析模式，配置 API Key 后支持长难句跨模块推理。'),
     actions
   };
 }
@@ -201,6 +187,7 @@ export async function breakdownSubtasksWithAI(taskText, tag = '') {
   if (!clean) return { ok: false, error: '请先填写任务名称' };
 
   const status = getAIStatus();
+  let llmError = '';
   if (status.configured) {
     const sys = [
       '你是项目管理与效率顾问。请将用户的任务拆解为 3 到 5 个具体、可执行、简洁的子步骤（Checklist）。',
@@ -217,16 +204,23 @@ export async function breakdownSubtasksWithAI(taskText, tag = '') {
         .filter(Boolean)
         .slice(0, 6);
       if (steps.length >= 2) {
-        return { ok: true, mode: 'llm', steps, hint: '' };
+        return { ok: true, mode: 'llm', llmFailed: false, errorReason: '', steps, hint: '' };
       }
+      llmError = '外部 AI 返回的子步骤格式无效';
+    } else {
+      llmError = res.error || '外部 AI 服务请求失败';
     }
   }
 
   return {
     ok: true,
     mode: 'local',
+    llmFailed: Boolean(llmError),
+    errorReason: llmError,
     steps: buildLocalSubtasks(clean),
-    hint: status.configured ? '' : '当前使用本地模板拆解；配置接口密钥后可根据具体上下文生成步骤。'
+    hint: llmError
+      ? `外部 AI 拆解失败（${llmError}），已回退本地模板拆解。`
+      : (status.configured ? '' : '当前使用本地模板拆解；配置接口密钥后可根据具体上下文生成步骤。')
   };
 }
 
@@ -351,6 +345,7 @@ export async function polishStandupWithAI({
 }) {
   const styleMeta = STANDUP_POLISH_STYLES.find(s => s.id === style) || STANDUP_POLISH_STYLES[0];
   const status = getAIStatus();
+  let llmError = '';
 
   if (status.configured) {
     const periodLabel = range === 'week' ? '本周工作周报' : '今日工作日报';
@@ -385,6 +380,8 @@ export async function polishStandupWithAI({
         return {
           ok: true,
           mode: 'llm',
+          llmFailed: false,
+          errorReason: '',
           style: styleMeta.id,
           styleLabel: styleMeta.label,
           hint: '',
@@ -394,6 +391,9 @@ export async function polishStandupWithAI({
             : '- 整体进度正常，暂无外部阻塞风险'
         };
       }
+      llmError = '外部 AI 返回的汇报格式无效';
+    } else {
+      llmError = res.error || '外部 AI 服务请求失败';
     }
   }
 
@@ -409,9 +409,13 @@ export async function polishStandupWithAI({
   return {
     ok: true,
     mode: 'local',
+    llmFailed: Boolean(llmError),
+    errorReason: llmError,
     style: styleMeta.id,
     styleLabel: styleMeta.label,
-    hint: status.configured ? '' : '当前使用本地结构化模板生成；在「设置 → AI」配置接口后可启用大模型深度润色。',
+    hint: llmError
+      ? `外部 AI 润色失败（${llmError}），已回退本地结构化模板生成。`
+      : (status.configured ? '' : '当前使用本地结构化模板生成；在「设置 → AI」配置接口后可启用大模型深度润色。'),
     ...local
   };
 }

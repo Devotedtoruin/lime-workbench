@@ -22,7 +22,7 @@ function fmtDue(ms) {
   return d.toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 function countdown(ms) {
-  const sec = Math.max(0, Math.ceil((ms - Date.now()) / 1000));
+  const sec = Math.max(0, Math.ceil((ms - wb.nowTick.value) / 1000));
   const h = Math.floor(sec / 3600);
   const m = Math.floor((sec % 3600) / 60);
   const s = sec % 60;
@@ -70,7 +70,7 @@ function act(alert, action) {
 
         <section class="upcoming-block">
           <p class="block-title">接下来</p>
-          <div v-if="!upcoming.length" class="empty" style="padding: 22px">
+          <div v-if="!upcoming.length" class="empty notif-empty">
             <span class="empty-art" aria-hidden="true"><img :src="asset('assets/icons/alarm-clock.svg')" alt="" /></span>
             <strong>暂无待触发的提醒</strong>
             <p>可在「日历提醒」页添加会议、截止或休息提醒。</p>
@@ -109,4 +109,5 @@ function act(alert, action) {
 .up-copy strong { display: block; font-size: var(--text-body); font-weight: 600; }
 .up-copy small { font-size: var(--text-meta); color: var(--muted); }
 .up-clock { font-size: var(--text-meta); color: var(--ink-soft); font-weight: 600; white-space: nowrap; }
+.notif-empty { padding: 22px; }
 </style>

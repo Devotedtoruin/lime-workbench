@@ -9,6 +9,9 @@ const wb = useWorkbench();
 
 const customWater = ref('');
 const stepInput = ref('');
+const waterError = ref('');
+const stepsError = ref('');
+const habitError = ref('');
 
 onMounted(() => {
   const waterPrefill = wb.consumePrefill('water');
@@ -38,10 +41,25 @@ const weekData = computed(() => {
 });
 
 function addCustomWater() {
-  const ml = Number(customWater.value);
+  waterError.value = '';
+  const raw = String(customWater.value ?? '').trim();
+  const ml = Number(raw);
+  if (!raw || !Number.isInteger(ml) || ml < 1 || ml > 5000) {
+    waterError.value = '请输入 1–5000 之间的整数毫升数';
+    return;
+  }
   if (wb.addWater(ml)) customWater.value = '';
 }
-function saveSteps() { if (wb.updateSteps(stepInput.value)) stepInput.value = ''; }
+function saveSteps() {
+  stepsError.value = '';
+  const raw = String(stepInput.value ?? '').trim();
+  const num = Number(raw);
+  if (!raw || !Number.isInteger(num) || num < 0 || num > 200000) {
+    stepsError.value = '请输入 0–200000 之间的整数步数';
+    return;
+  }
+  if (wb.updateSteps(num)) stepInput.value = '';
+}
 
 /* ---------------- 习惯打卡 ---------------- */
 const formOpen = ref(false);
@@ -49,11 +67,27 @@ const draft = reactive({ name: '', icon: 'leaf', target: 1 });
 
 function toggleHabitForm() {
   formOpen.value = !formOpen.value;
+  habitError.value = '';
   if (formOpen.value) Object.assign(draft, { name: '', icon: 'leaf', target: 1 });
 }
 
 function saveHabit() {
-  if (wb.addHabit({ name: draft.name, icon: draft.icon, target: draft.target })) {
+  habitError.value = '';
+  const clean = draft.name.trim();
+  if (!clean) {
+    habitError.value = '请输入习惯名称';
+    return;
+  }
+  if (clean.length > 24) {
+    habitError.value = '习惯名称最多 24 个字';
+    return;
+  }
+  const target = Number(draft.target);
+  if (!Number.isInteger(target) || target < 1 || target > 10) {
+    habitError.value = '每日目标需为 1–10 次的整数';
+    return;
+  }
+  if (wb.addHabit({ name: clean, icon: draft.icon, target })) {
     formOpen.value = false;
     Object.assign(draft, { name: '', icon: 'leaf', target: 1 });
   }
@@ -92,7 +126,7 @@ function streakText(habit) {
     <header class="page-head">
       <div>
         <h1>生活习惯</h1>
-        <p class="sub">记录每日饮水与总步数，配合工作间歇安排活动。</p>
+        <p class="sub">记录每日饮水、步数与日常习惯打卡。</p>
       </div>
       <button class="btn btn-soft" type="button" @click="wb.goto('calendar')">
         <img :src="asset('assets/icons/bell.svg')" alt="" />设置提醒
@@ -122,10 +156,11 @@ function streakText(habit) {
             <img :src="asset('assets/icons/rotate-ccw.svg')" alt="" />撤销
           </button>
         </div>
-        <form class="custom-water" @submit.prevent="addCustomWater">
-          <input v-model="customWater" class="input numeric" type="number" min="1" max="5000" step="1" inputmode="numeric" placeholder="自定义 ml，如 350" />
+        <form class="custom-water" novalidate @submit.prevent="addCustomWater">
+          <input v-model="customWater" class="input numeric" :class="{ 'is-invalid': waterError }" type="number" min="1" max="5000" step="1" inputmode="numeric" placeholder="自定义 ml，如 350" @input="waterError = ''" />
           <button class="btn btn-primary btn-sm" type="submit">记录</button>
         </form>
+        <p v-if="waterError" class="field-error">{{ waterError }}</p>
         <p class="tiny">每次记录累加到当天；撤销仅移除最近一次记录。</p>
       </section>
 
@@ -145,10 +180,11 @@ function streakText(habit) {
           </p>
         </div>
         <div class="habit-track"><i :style="{ transform: `scaleX(${wb.stepsPercent.value / 100})` }"></i></div>
-        <form class="custom-water" @submit.prevent="saveSteps">
-          <input v-model="stepInput" class="input numeric" type="number" min="0" max="200000" step="1" inputmode="numeric" placeholder="今天的累计步数，如 6000" />
+        <form class="custom-water" novalidate @submit.prevent="saveSteps">
+          <input v-model="stepInput" class="input numeric" :class="{ 'is-invalid': stepsError }" type="number" min="0" max="200000" step="1" inputmode="numeric" placeholder="今天的累计步数，如 6000" @input="stepsError = ''" />
           <button class="btn btn-primary btn-sm" type="submit">更新</button>
         </form>
+        <p v-if="stepsError" class="field-error">{{ stepsError }}</p>
         <p class="tiny">保存后覆盖当天总步数，不累加。运动时长与距离单独记录。</p>
       </section>
     </div>
@@ -167,14 +203,14 @@ function streakText(habit) {
         </div>
       </div>
 
-      <form v-if="formOpen" class="habit-form" @submit.prevent="saveHabit">
+      <form v-if="formOpen" class="habit-form" novalidate @submit.prevent="saveHabit">
         <label class="field">
           <span>习惯名称</span>
-          <input v-model="draft.name" class="input" :maxlength="24" placeholder="例如：早起、读书 30 分、不熬夜" required />
+          <input v-model="draft.name" class="input" :class="{ 'is-invalid': habitError }" :maxlength="24" placeholder="例如：早起、读书 30 分、不熬夜" @input="habitError = ''" />
         </label>
         <label class="field">
           <span>每天目标次数</span>
-          <input v-model.number="draft.target" class="input numeric" type="number" min="1" max="10" step="1" />
+          <input v-model.number="draft.target" class="input numeric" type="number" min="1" max="10" step="1" @input="habitError = ''" />
         </label>
         <div class="field habit-icon-field">
           <span>图标</span>
@@ -194,6 +230,7 @@ function streakText(habit) {
           </div>
         </div>
         <button class="btn btn-primary" type="submit">保存习惯</button>
+        <p v-if="habitError" class="field-error habit-form-error">{{ habitError }}</p>
       </form>
 
       <div v-if="!wb.habits.value.length" class="empty">
@@ -293,6 +330,7 @@ function streakText(habit) {
   align-items: end; margin-bottom: 16px; padding-bottom: 16px;
   border-bottom: 1px solid var(--line);
 }
+.habit-form-error { grid-column: 1 / -1; margin-top: 0; }
 .habit-icon-field { min-width: 0; }
 .icon-picks { display: flex; gap: 4px; flex-wrap: wrap; }
 .icon-pick {

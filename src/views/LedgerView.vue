@@ -2,7 +2,7 @@
 import { computed, onMounted, reactive, ref } from 'vue';
 import { asset } from '../lib/assets.js';
 import { useWorkbench } from '../composables/useWorkbench.js';
-import { CATEGORIES, categoryIcon } from '../../js/command.js';
+import { CATEGORIES, categoryIcon, displayCategoryName, normalizeLedgerCategory } from '../../js/command.js';
 import LedgerCharts from '../components/LedgerCharts.vue';
 import VirtualList from '../components/VirtualList.vue';
 
@@ -16,6 +16,9 @@ const form = reactive({ amount: '', note: '', cat: CATEGORIES[0], date: wb.today
 
 const customCatInput = ref('');
 const showCustomCatForm = ref(false);
+const customCatError = ref('');
+const entryError = ref('');
+const templateError = ref('');
 const categories = computed(() => wb.allLedgerCategories?.value || CATEGORIES);
 
 onMounted(() => {
@@ -24,7 +27,7 @@ onMounted(() => {
     type.value = prefill.type === 'income' ? 'income' : 'expense';
     if (prefill.amount) form.amount = String(prefill.amount);
     if (prefill.note) form.note = prefill.note;
-    if (prefill.cat) form.cat = prefill.cat;
+    if (prefill.cat) form.cat = normalizeLedgerCategory(prefill.cat);
   }
 });
 
@@ -34,30 +37,38 @@ function isCustomCategory(c) {
 
 function addCustomCat() {
   const name = customCatInput.value.trim();
-  if (!name) return;
-  if (wb.addLedgerCategory(name)) {
+  if (!name) {
+    customCatError.value = '请输入分类名称';
+    return;
+  }
+  const added = wb.addLedgerCategory(name);
+  if (added) {
     customCatInput.value = '';
+    customCatError.value = '';
     showCustomCatForm.value = false;
-    form.cat = `🏷 ${name}`;
+    form.cat = added;
+  } else {
+    customCatError.value = '分类已存在或超出限制';
   }
 }
 
 function removeCustomCat(c) {
   const clean = String(c).replace(/^🏷\s*/, '').trim();
   wb.removeLedgerCategory(clean);
-  if (form.cat === c) form.cat = CATEGORIES[0];
-  if (catFilter.value === c) catFilter.value = 'all';
+  if (catName(form.cat) === clean) form.cat = CATEGORIES[0];
+  if (catFilter.value !== 'all' && catName(catFilter.value) === clean) catFilter.value = 'all';
 }
 
 const filtered = computed(() => {
   const nowMonth = wb.todayStr.value.slice(0, 7);
   const q = searchQuery.value.trim().toLowerCase();
+  const targetCat = catFilter.value === 'all' ? 'all' : catName(catFilter.value);
   return wb.state.ledger
     .filter(r => {
       if (filter.value === 'month' && !r.date.startsWith(nowMonth)) return false;
       if (filter.value === 'income' && r.type !== 'income') return false;
       if (filter.value === 'expense' && r.type !== 'expense') return false;
-      if (catFilter.value !== 'all' && r.cat !== catFilter.value) return false;
+      if (targetCat !== 'all' && catName(r.cat) !== targetCat) return false;
       if (q) {
         const hay = `${r.note || ''} ${r.cat || ''} ${r.date || ''}`.toLowerCase();
         if (!hay.includes(q)) return false;
@@ -73,35 +84,25 @@ const summary = computed(() => {
   return { income, expense, balance: income - expense };
 });
 
-const chart = computed(() => {
-  const now = new Date(wb.nowDate.value);
-  const days = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(now);
-    d.setDate(d.getDate() - (6 - i));
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-    const total = wb.state.ledger
-      .filter(r => r.type === 'expense' && r.date === key)
-      .reduce((s, r) => s + r.amount, 0);
-    return { key, label: i === 6 ? '今天' : d.toLocaleDateString('zh-CN', { weekday: 'narrow' }), total };
-  });
-  const max = Math.max(...days.map(d => d.total), 1);
-  return { days, max, empty: days.every(d => d.total === 0) };
-});
-
 const currency = new Intl.NumberFormat('zh-CN', {
   style: 'currency', currency: 'CNY', minimumFractionDigits: 2, maximumFractionDigits: 2
 });
 function money(n) { return currency.format(Number(n) || 0); }
 
 function submit() {
+  const amt = Number(form.amount);
+  if (!Number.isFinite(amt) || amt <= 0 || amt > 1_000_000_000) {
+    entryError.value = '请输入有效金额（0.01 – 1,000,000,000）';
+    return;
+  }
+  entryError.value = '';
   if (wb.addLedgerRecord({ type: type.value, amount: form.amount, note: form.note, cat: form.cat, date: form.date || wb.todayStr.value })) {
     form.amount = '';
     form.note = '';
   }
 }
 function catName(c) {
-  const s = String(c || '');
-  return (/^[^\w\u4e00-\u9fa5]/.test(s) ? s.replace(/^[^\s]+\s*/, '').trim() : s.trim()) || '未分类';
+  return displayCategoryName(c);
 }
 
 /* ---------------- 固定账目与每月订阅模板 ---------------- */
@@ -126,11 +127,13 @@ function frequencyLabel(t) {
 }
 function resetTemplateForm() {
   editingTemplateId.value = null;
+  templateError.value = '';
   Object.assign(templateForm, { name: '', amount: '', type: 'expense', cat: CATEGORIES[0], note: '', frequency: 'monthly', dayOfMonth: 1, reminderDays: 3 });
   showTemplateForm.value = false;
 }
 function fillSubscriptionPreset(preset) {
   editingTemplateId.value = null;
+  templateError.value = '';
   Object.assign(templateForm, {
     name: preset.name,
     amount: String(preset.amount),
@@ -145,6 +148,7 @@ function fillSubscriptionPreset(preset) {
 }
 function editTemplate(t) {
   editingTemplateId.value = t.id;
+  templateError.value = '';
   Object.assign(templateForm, {
     name: t.name, amount: String(t.amount), type: t.type, cat: t.cat,
     note: t.note, frequency: t.frequency, dayOfMonth: t.dayOfMonth, reminderDays: t.reminderDays ?? 3
@@ -152,6 +156,17 @@ function editTemplate(t) {
   showTemplateForm.value = true;
 }
 function saveTemplate() {
+  const cleanName = templateForm.name.trim();
+  const amt = Number(templateForm.amount);
+  if (!cleanName) {
+    templateError.value = '请填写模板名称';
+    return;
+  }
+  if (!Number.isFinite(amt) || amt <= 0 || amt > 1_000_000) {
+    templateError.value = '请填写有效的金额（0.01 – 1,000,000）';
+    return;
+  }
+  templateError.value = '';
   const ok = editingTemplateId.value
     ? wb.updateLedgerTemplate(editingTemplateId.value, { ...templateForm })
     : wb.addLedgerTemplate({ ...templateForm });
@@ -173,7 +188,7 @@ function useTemplate(template) {
     <header class="page-head">
       <div>
         <h1>账本</h1>
-        <p class="sub">记录办公支出、日常收支与每月固定订阅，支持自定义分类、二次编辑与图表分析。</p>
+        <p class="sub">记录日常收支、预算与固定订阅，支持自定义分类与图表统计。</p>
       </div>
       <button class="btn btn-primary" type="button" @click="wb.openLedgerDialog()">
         <img :src="asset('assets/icons/plus.svg')" alt="" />记一笔
@@ -184,32 +199,27 @@ function useTemplate(template) {
     <section class="panel glass rim charts-panel">
       <div class="panel-head">
         <h2 class="panel-title">
-          <img :src="asset('assets/icons/activity.svg')" alt="" />月度财务可视化分析
+          <img :src="asset('assets/icons/activity.svg')" alt="" />收支趋势与结构
         </h2>
-        <span class="panel-sub">收支趋势折线图 · 消费分类占比环形图 · 预算水位监控</span>
+        <span class="panel-sub">预算水位 · 收支折线 · 分类占比</span>
       </div>
       <LedgerCharts />
     </section>
 
     <div class="ledger-top">
-      <!-- 概览 -->
-      <section class="panel glass rim overview">
-        <div class="overview-nums">
-          <div>
-            <small>所选范围支出</small>
-            <strong class="numeric">{{ money(summary.expense) }}</strong>
-            <span>收入 <b class="numeric">{{ money(summary.income) }}</b> · 结余 <b class="numeric">{{ money(summary.balance) }}</b></span>
-          </div>
+      <!-- 所选范围收支汇总 -->
+      <section class="panel glass rim overview" aria-label="所选范围汇总">
+        <div class="overview-stat">
+          <small>所选范围支出</small>
+          <strong class="numeric is-expense">{{ money(summary.expense) }}</strong>
         </div>
-        <div class="overview-chart" role="img" aria-label="最近七天支出">
-          <small class="chart-caption">最近 7 天</small>
-          <div v-if="chart.empty" class="chart-empty">最近七天还没有支出记录</div>
-          <div v-else class="bars">
-            <div v-for="(d, i) in chart.days" :key="d.key" class="bar-col" :class="{ 'is-today': i === 6 }" :title="`${d.label} · ${money(d.total)}`">
-              <i :style="{ height: d.total > 0 ? `${Math.max(5, (d.total / chart.max) * 42)}px` : '0' }"></i>
-              <span>{{ d.label }}</span>
-            </div>
-          </div>
+        <div class="overview-stat">
+          <small>所选范围收入</small>
+          <strong class="numeric is-income">{{ money(summary.income) }}</strong>
+        </div>
+        <div class="overview-stat">
+          <small>当期结余</small>
+          <strong class="numeric">{{ money(summary.balance) }}</strong>
         </div>
       </section>
 
@@ -219,15 +229,19 @@ function useTemplate(template) {
           <button type="button" :class="{ 'is-active': type === 'expense' }" @click="type = 'expense'">支出</button>
           <button type="button" :class="{ 'is-active': type === 'income' }" @click="type = 'income'">收入</button>
         </div>
-        <form class="entry-form" @submit.prevent="submit">
+        <form class="entry-form" novalidate @submit.prevent="submit">
           <label class="field amount-field">
             <span>金额</span>
-            <span class="amount-wrap"><b>¥</b><input v-model="form.amount" type="number" step="0.01" min="0.01" max="1000000000" inputmode="decimal" required placeholder="0.00" /></span>
+            <span class="amount-wrap" :class="{ 'is-invalid': entryError }">
+              <b>¥</b>
+              <input v-model="form.amount" type="number" step="0.01" min="0.01" max="1000000000" inputmode="decimal" placeholder="0.00" @input="entryError = ''" />
+            </span>
           </label>
           <label class="field">
             <span>备注</span>
-            <input v-model="form.note" class="input" maxlength="300" placeholder="办公用品、通勤、软件订阅…" />
+            <input v-model="form.note" class="input" maxlength="300" placeholder="办公用品、通勤、软件订阅…" @input="entryError = ''" />
           </label>
+          <p v-if="entryError" class="field-error entry-error" role="alert">{{ entryError }}</p>
           <button class="btn btn-primary" type="submit">保存记录</button>
         </form>
         <div class="cat-grid">
@@ -253,28 +267,30 @@ function useTemplate(template) {
               :aria-label="`删除分类 ${catName(c)}`"
               @click.stop="removeCustomCat(c)"
             >
-              ×
+              <img :src="asset('assets/icons/x.svg')" alt="" />
             </button>
           </span>
           <button
             type="button"
             class="cat-chip cat-add-btn"
-            @click="showCustomCatForm = !showCustomCatForm"
+            @click="showCustomCatForm = !showCustomCatForm; customCatError = ''"
           >
             <img :src="asset('assets/icons/plus.svg')" alt="" />
             <span>自定义分类</span>
           </button>
         </div>
-        <form v-if="showCustomCatForm" class="custom-cat-form" @submit.prevent="addCustomCat">
+        <form v-if="showCustomCatForm" class="custom-cat-form" novalidate @submit.prevent="addCustomCat">
           <input
             v-model="customCatInput"
             class="input"
+            :class="{ 'is-invalid': customCatError }"
             maxlength="24"
             placeholder="输入分类名称，如：宠物、咖啡、数码"
-            required
+            @input="customCatError = ''"
           />
           <button class="btn btn-soft btn-sm" type="submit">添加</button>
         </form>
+        <p v-if="showCustomCatForm && customCatError" class="field-error" role="alert">{{ customCatError }}</p>
       </section>
     </div>
 
@@ -282,7 +298,7 @@ function useTemplate(template) {
       <div class="panel-head">
         <div>
           <h2 class="panel-title">固定支出与订阅管理</h2>
-          <p class="panel-sub">支持房租、云服务、软件会员等每月固定账目，月初自动生成待确认账单卡片，点击确认后正式入账</p>
+          <p class="panel-sub">每月账单将在月初生成待确认卡片，确认后正式入账</p>
         </div>
       </div>
 
@@ -339,7 +355,8 @@ function useTemplate(template) {
             class="preset-sub-btn"
             @click="fillSubscriptionPreset(p)"
           >
-            + {{ p.name }}
+            <img class="inline-mini-icon" :src="asset('assets/icons/plus.svg')" alt="" />
+            {{ p.name }}
           </button>
         </div>
         <button class="btn btn-soft btn-sm" type="button" @click="showTemplateForm = !showTemplateForm">
@@ -387,9 +404,9 @@ function useTemplate(template) {
       <p v-else class="template-empty">例如：每月房租 ¥2800、云服务订阅 ¥68、工作日午餐 ¥25。点击上方快捷标签可一键创建。</p>
       <p class="template-note">每月固定支出在月初自动生成「待确认账单卡片」，点击确认后正式记入账本；每日/工作日模板在打开工作台时自动补记当日流水。</p>
 
-      <form v-if="showTemplateForm" class="template-form" @submit.prevent="saveTemplate">
-        <label class="field"><span>名称</span><input v-model="templateForm.name" class="input" maxlength="80" placeholder="房租 / 云服务 / 午餐" required /></label>
-        <label class="field"><span>金额</span><input v-model="templateForm.amount" class="input numeric" type="number" min="0.01" step="0.01" placeholder="2800" required /></label>
+      <form v-if="showTemplateForm" class="template-form" novalidate @submit.prevent="saveTemplate">
+        <label class="field"><span>名称</span><input v-model="templateForm.name" class="input" :class="{ 'is-invalid': templateError && !templateForm.name.trim() }" maxlength="80" placeholder="房租 / 云服务 / 午餐" @input="templateError = ''" /></label>
+        <label class="field"><span>金额</span><input v-model="templateForm.amount" class="input numeric" :class="{ 'is-invalid': templateError && templateForm.name.trim() }" type="number" min="0.01" step="0.01" placeholder="2800" @input="templateError = ''" /></label>
         <label class="field"><span>类型</span><select v-model="templateForm.type" class="input"><option value="expense">支出</option><option value="income">收入</option></select></label>
         <label class="field"><span>分类</span><select v-model="templateForm.cat" class="input"><option v-for="c in categories" :key="c" :value="c">{{ catName(c) }}</option></select></label>
         <label class="field"><span>频率</span><select v-model="templateForm.frequency" class="input"><option v-for="f in frequencies" :key="f.id" :value="f.id">{{ f.label }}</option></select></label>
@@ -398,6 +415,7 @@ function useTemplate(template) {
         <label class="field"><span>备注</span><input v-model="templateForm.note" class="input" maxlength="300" placeholder="默认用名称" /></label>
         <button class="btn btn-primary" type="submit">{{ editingTemplateId ? '更新模板' : '保存模板' }}</button>
         <button v-if="editingTemplateId" class="btn btn-ghost" type="button" @click="resetTemplateForm">取消</button>
+        <p v-if="templateError" class="field-error template-error" role="alert">{{ templateError }}</p>
       </form>
     </section>
 
@@ -440,8 +458,8 @@ function useTemplate(template) {
         tag="ul"
         list-class="ledger-list"
       >
-        <template #default="{ item: r, index }">
-          <li :data-vlist-index="index">
+        <template #default="{ item: r }">
+          <div class="ledger-row-inner">
             <span class="ledger-cat"><img :src="asset(`assets/icons/${categoryIcon(r.cat)}.svg`)" alt="" /></span>
             <div class="ledger-copy">
               <strong>{{ r.note }}</strong>
@@ -456,7 +474,7 @@ function useTemplate(template) {
                 <img :src="asset('assets/icons/trash.svg')" alt="" />
               </button>
             </div>
-          </li>
+          </div>
         </template>
       </VirtualList>
     </section>
@@ -466,27 +484,34 @@ function useTemplate(template) {
 <style scoped>
 .ledger-top {
   display: grid;
-  grid-template-columns: minmax(0, 1.15fr) minmax(320px, .85fr);
+  grid-template-columns: minmax(0, .95fr) minmax(320px, 1.05fr);
   gap: var(--shell-gap);
   align-items: start;
 }
-.overview { display: flex; align-items: center; justify-content: space-between; gap: 28px; flex-wrap: wrap; }
-.overview-nums { flex: 0 0 auto; }
-.overview-chart { flex: 1 1 240px; min-width: 200px; }
-.chart-caption { display: block; margin-bottom: 4px; font-size: var(--text-2xs); color: var(--muted); }
-.overview-nums small { font-size: var(--text-meta); color: var(--muted); }
-.overview-nums strong { display: block; margin: 6px 0 4px; font-size: 32px; font-weight: 800; letter-spacing: -.03em; }
-.overview-nums span { font-size: var(--text-sm); color: var(--muted); }
-.overview-nums b { color: var(--ink-soft); font-weight: 650; }
-.chart-empty { display: grid; place-items: center; min-height: 70px; font-size: var(--text-meta); color: var(--muted); border: 1px dashed var(--line); border-radius: 10px; }
-.bars { display: flex; align-items: flex-end; gap: 10px; height: 74px; width: 100%; }
-.bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 5px; height: 100%; }
-.bar-col i { display: block; width: 100%; max-width: 22px; border-radius: 5px 5px 2px 2px; background: color-mix(in srgb, var(--brand) 55%, transparent); }
-.bar-col.is-today i { background: var(--brand); }
-.bar-col span { font-size: var(--text-meta); color: var(--muted); }
+.overview {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  align-items: stretch;
+}
+.overview-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.overview-stat + .overview-stat {
+  padding-left: 14px;
+  border-left: 1px solid var(--line);
+}
+.overview-stat small { font-size: var(--text-meta); color: var(--muted); }
+.overview-stat strong { font-size: clamp(20px, 2.1vw, 26px); font-weight: 800; letter-spacing: -.03em; line-height: 1.2; overflow-wrap: anywhere; }
+.overview-stat strong.is-income { color: var(--brand-deep); }
+.overview-stat strong.is-expense { color: var(--ink); }
 
 .entry-panel { display: flex; flex-direction: column; gap: 14px; }
 .entry-form { display: grid; grid-template-columns: minmax(110px, .8fr) minmax(0, 1.2fr); gap: 10px; align-items: end; }
+.entry-error, .template-error { grid-column: 1 / -1; margin-top: 0; }
 .entry-form > .btn { grid-column: 1 / -1; }
 .amount-wrap { display: flex; align-items: center; gap: 6px; min-height: 42px; padding: 0 12px; border: 1px solid var(--line-strong); border-radius: var(--radius-control); background: var(--surface); }
 .amount-wrap:focus-within { border-color: var(--brand); box-shadow: var(--ring); }
@@ -496,20 +521,22 @@ function useTemplate(template) {
 .cat-chip-wrap { position: relative; display: inline-flex; align-items: center; }
 .cat-chip {
   display: inline-flex; align-items: center; gap: 5px;
-  min-height: 32px; padding: 0 10px; border-radius: var(--radius-pill);
+  min-height: 32px; padding: 0 10px; border-radius: 8px;
   border: 1px solid var(--line); background: var(--surface); color: var(--ink-soft); font-size: var(--text-meta);
   transition: border-color var(--motion-fast), background-color var(--motion-fast), color var(--motion-fast);
 }
-.cat-chip.is-custom { padding-right: 22px; }
+.cat-chip.is-custom { padding-right: 24px; }
 .cat-chip img { width: 13px; height: 13px; opacity: .7; }
 .cat-chip.is-active { border-color: var(--brand); background: var(--brand-pale); color: var(--brand-deep); font-weight: 600; }
 .cat-chip.is-active img { opacity: 1; }
 .cat-del {
-  position: absolute; right: 5px; width: 16px; height: 16px; padding: 0;
-  border: 0; border-radius: 50%; background: transparent;
-  color: var(--muted); font-size: 12px; line-height: 1; display: grid; place-items: center;
+  position: absolute; right: 4px; width: 18px; height: 18px; padding: 0;
+  border: 0; border-radius: 6px; background: transparent;
+  color: var(--muted); display: grid; place-items: center;
 }
-.cat-del:hover { background: var(--coral-pale); color: var(--coral); }
+.cat-del img { width: 11px; height: 11px; opacity: .65; }
+.cat-del:hover { background: var(--coral-pale); }
+.cat-del:hover img { opacity: 1; }
 .cat-add-btn { border-style: dashed; color: var(--muted); }
 .custom-cat-form { display: flex; gap: 8px; }
 .custom-cat-form .input { flex: 1; min-height: 34px; }
@@ -528,7 +555,6 @@ function useTemplate(template) {
 }
 .pending-dot {
   width: 8px; height: 8px; border-radius: 50%; background: var(--brand);
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--brand) 22%, transparent);
 }
 .pending-bills-title strong { font-size: var(--text-sm); font-weight: 700; color: var(--brand-deep); }
 .pending-bills-title small { font-size: var(--text-2xs); color: var(--muted); }
@@ -555,7 +581,8 @@ function useTemplate(template) {
 }
 .preset-sub-label { font-size: var(--text-2xs); color: var(--muted); font-weight: 600; }
 .preset-sub-btn {
-  min-height: 28px; padding: 0 10px; border-radius: 99px;
+  display: inline-flex; align-items: center; gap: 4px;
+  min-height: 28px; padding: 0 10px; border-radius: 8px;
   border: 1px dashed var(--line-strong); background: var(--surface);
   color: var(--ink-soft); font-size: var(--text-2xs); font-weight: 600;
 }
@@ -569,8 +596,9 @@ function useTemplate(template) {
 .ledger-list-panel { padding: 0; }
 .list-empty { max-width: none; margin: 0; padding: 40px 24px; border-top: 1px solid var(--line); }
 :deep(.ledger-list) { list-style: none; margin: 0; padding: 4px 20px; position: relative; }
-:deep(.ledger-list li) { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); }
-:deep(.ledger-list li:last-child) { border-bottom: 0; }
+:deep(.ledger-list > li) { padding: 12px 0; border-bottom: 1px solid var(--line); }
+:deep(.ledger-list > li:last-child) { border-bottom: 0; }
+.ledger-row-inner { display: flex; align-items: center; gap: 12px; width: 100%; }
 .ledger-cat { width: 34px; height: 34px; flex: 0 0 34px; display: grid; place-items: center; border-radius: 10px; background: var(--surface-soft); border: 1px solid var(--line); }
 .ledger-cat img { width: 16px; height: 16px; opacity: .7; }
 .ledger-copy { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
@@ -613,6 +641,8 @@ function useTemplate(template) {
   .ledger-top { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 640px) {
+  .overview { grid-template-columns: minmax(0, 1fr); }
+  .overview-stat + .overview-stat { padding-left: 0; padding-top: 10px; border-left: 0; border-top: 1px solid var(--line); }
   .entry-form { grid-template-columns: minmax(0, 1fr); }
   .template-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   :deep(.ledger-list) { padding: 4px 14px; }

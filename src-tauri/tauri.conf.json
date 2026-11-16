@@ -5,7 +5,7 @@
   "identifier": "app.lime.workbench",
   "build": {
     "frontendDist": "../dist",
-    "devUrl": "http://127.0.0.1:5173",
+    "devUrl": "http://127.0.0.1:3000",
     "beforeDevCommand": {
       "script": "npm run dev",
       "wait": false

@@ -12,20 +12,20 @@
 //   - 全部数据可序列化到 localStorage
 
 export const PRESETS = [
-  { id: 'water', icon: 'water', label: '喝水', every: 45, unit: 'min', text: '该喝水啦 💧', color: '#4a90d9' },
-  { id: 'eyes', icon: 'eye', label: '护眼', every: 20, unit: 'min', text: '看远处 20 秒，保护眼睛 👀', color: '#7b8fa8' },
-  { id: 'posture', icon: 'muscle', label: '坐姿', every: 30, unit: 'min', text: '挺直腰背，起来动动 🧘', color: '#8a6bbf' },
-  { id: 'stand', icon: 'run', label: '起身', every: 60, unit: 'min', text: '坐太久了，站起来走走 🚶', color: '#e0913c' },
-  { id: 'mood', icon: 'star', label: '心情', every: 120, unit: 'min', text: '深呼吸，放松一下 ✨', color: '#d9534f' }
+  { id: 'water', icon: 'water', label: '喝水', every: 45, unit: 'min', text: '该喝水啦', color: '#4a90d9' },
+  { id: 'eyes', icon: 'eye', label: '护眼', every: 20, unit: 'min', text: '看远处 20 秒，保护眼睛', color: '#7b8fa8' },
+  { id: 'posture', icon: 'muscle', label: '坐姿', every: 30, unit: 'min', text: '挺直腰背，起来动动', color: '#8a6bbf' },
+  { id: 'stand', icon: 'run', label: '起身', every: 60, unit: 'min', text: '坐太久了，站起来走走', color: '#e0913c' },
+  { id: 'mood', icon: 'star', label: '心情', every: 120, unit: 'min', text: '深呼吸，放松一下', color: '#d9534f' }
 ];
 
 export const TIMER_PRESETS = [
   { id: 'pomo', icon: 'clock', label: '25 分钟', minutes: 25, text: '25 分钟倒计时已结束。此提醒不计入专注记录。' },
   { id: 'pomo50', icon: 'clock', label: '50 分钟', minutes: 50, text: '50 分钟倒计时已结束。此提醒不计入专注记录。' },
-  { id: 'tea', icon: 'tea', label: '茶歇 15 分', minutes: 15, text: '茶歇结束，回工位啦 🍵' },
-  { id: 'nap', icon: 'meditate', label: '午睡 20 分', minutes: 20, text: '午睡结束，醒醒神 😴' },
-  { id: 'work', icon: 'laptop', label: '冲刺 90 分', minutes: 90, text: '深度工作结束 🎯' },
-  { id: 'commute', icon: 'bike', label: '通勤 45 分', minutes: 45, text: '该下车啦 🚌' }
+  { id: 'tea', icon: 'tea', label: '茶歇 15 分', minutes: 15, text: '茶歇结束，回工位继续推进' },
+  { id: 'nap', icon: 'meditate', label: '午睡 20 分', minutes: 20, text: '午睡结束，醒醒神' },
+  { id: 'work', icon: 'laptop', label: '冲刺 90 分', minutes: 90, text: '深度工作结束，稍作休息' },
+  { id: 'commute', icon: 'bike', label: '通勤 45 分', minutes: 45, text: '通勤时间已到，注意下车' }
 ];
 
 export const MIN_REMINDER_MINUTES = 1;

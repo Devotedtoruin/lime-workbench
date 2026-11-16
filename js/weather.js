@@ -381,7 +381,7 @@ export function advice(wx, profile = {}, now = new Date()) {
   const pop = probability(today?.pop);
   const raining = rainCodes.includes(cur.code) || rainCodes.includes(today?.code);
   if (pop !== null && pop >= 60 || raining) {
-    tips.push({ icon: 'umbrella', text: '今天可能下雨，出门记得带伞 ☔' });
+    tips.push({ icon: 'umbrella', text: '今天可能下雨，出门记得带伞' });
   } else if (pop !== null && pop >= 30) {
     tips.push({ icon: 'umbrella', text: `降水概率 ${pop}%，建议备把伞` });
   }
@@ -417,7 +417,7 @@ export function advice(wx, profile = {}, now = new Date()) {
   if ([0, 1, 2].includes(cur.code) && t !== null && t > 8 && t < 30 &&
       wind !== null && wind < 30 && pop !== null && pop < 30 && !raining &&
       ![71, 73, 75, 77, 85, 86].includes(today?.code)) {
-    tips.push({ icon: 'run', text: '天气不错，下班去跑跑步吧 🏃' });
+    tips.push({ icon: 'run', text: '天气不错，下班去跑跑步吧' });
   }
   return tips;
 }

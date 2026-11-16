@@ -1,10 +1,10 @@
 <script setup>
 import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue';
 import { asset } from '../lib/assets.js';
-import { useWorkbench } from '../composables/useWorkbench.js';
+import { PAGE_LABELS, SPORTS, useWorkbench } from '../composables/useWorkbench.js';
 import { burstFrom } from '../lib/effects.js';
 import { reviewFor, reviewHeadline } from '../../js/review.js';
-import { parseCommand, resolveLocalShortcut, preview as previewCommand } from '../../js/command.js';
+import { parseCommand, parseCommandList, resolveLocalShortcut, preview as previewCommand } from '../../js/command.js';
 import { previewNoteBody } from '../../js/workspace.js';
 import { SYNTAX_CATEGORIES, matchSlashHelp } from '../lib/syntax-help.js';
 import { parseOmniboxWithAI } from '../lib/ai-assist.js';
@@ -15,6 +15,27 @@ import LedgerCharts from '../components/LedgerCharts.vue';
 const emit = defineEmits(['open-command', 'new-task']);
 const wb = useWorkbench();
 
+/* ---------------- 多职业身份切换与精选常用网站 ---------------- */
+const roleSwitcherOpen = ref(false);
+const pendingRoleId = ref(wb.extState.roleId);
+const seedRoleLinks = ref(true);
+const showRoleStrip = computed(() => !wb.extState.roleChosen || roleSwitcherOpen.value);
+
+watch(() => wb.extState.roleId, val => {
+  pendingRoleId.value = val;
+});
+
+const roleList = computed(() => wb.ROLE_IDS.map(id => wb.ROLE_PROFILES[id]));
+const selectedRolePreview = computed(() => wb.ROLE_PROFILES[pendingRoleId.value] || wb.currentRole.value);
+
+function confirmRoleSelection() {
+  wb.applyRoleFrame(pendingRoleId.value, {
+    applyLayout: true,
+    seedLinks: seedRoleLinks.value
+  });
+  roleSwitcherOpen.value = false;
+}
+
 /* ---------------- 全能一句话快记 & /help 语法面板 (Omnibox) ---------------- */
 const quickText = ref('');
 const quickInput = ref(null);
@@ -24,6 +45,8 @@ const aiParsing = ref(false);
 const aiParsedResult = ref(null);
 const noteDraft = ref({ open: false, id: null, title: '', body: '' });
 const linkDraft = ref({ open: false, id: null, title: '', url: '' });
+const noteError = ref('');
+const linkError = ref('');
 
 watch(quickText, val => {
   quickForceTodo.value = false;
@@ -55,10 +78,19 @@ function fillQuickExample(exampleText) {
 
 function describeShortcut(sc) {
   if (!sc) return '';
-  if (sc.type === 'note') return `新建便签 · ${sc.title || '快速便签'}`;
-  if (sc.type === 'link') return `添加工作链接 · ${sc.title || sc.url || '常用链接'}`;
-  if (sc.type === 'export') return '导出工作台数据备份 (.json)';
-  if (sc.type === 'navigate') return `前往「${sc.label || sc.page}」页面`;
+  const pageName = PAGE_LABELS[sc.page] || sc.page;
+  if (sc.kind === 'navigate') return `前往「${pageName}」页面`;
+  if (sc.kind === 'prefill') {
+    if (sc.page === 'sport') {
+      const spLabel = SPORTS.find(s => s.id === sc.payload?.type)?.label || '运动';
+      return sc.payload?.distance
+        ? `带入 ${spLabel} ${sc.payload.distance} 公里至运动页`
+        : `前往运动页并选择「${spLabel}」`;
+    }
+    if (sc.page === 'habits') return '前往生活习惯页记录饮水';
+    if (sc.page === 'todo') return `带入「${sc.payload?.text || '任务'}」至待办页`;
+    return `前往「${pageName}」并预填`;
+  }
   return '执行快捷动作';
 }
 
@@ -73,6 +105,16 @@ const quickResolution = computed(() => {
         shortcut,
         badge: '快捷指令',
         summary: describeShortcut(shortcut),
+        canForceTodo: true
+      };
+    }
+    const multi = parseCommandList(text, wb.nowDate.value);
+    if (multi.length > 1) {
+      return {
+        kind: 'intent-list',
+        intents: multi,
+        badge: `组合指令 (${multi.length})`,
+        summary: multi.map(previewCommand).join('；'),
         canForceTodo: true
       };
     }
@@ -105,6 +147,7 @@ const quickResolution = computed(() => {
 });
 
 function startNote(note = null) {
+  noteError.value = '';
   noteDraft.value = note
     ? { open: true, id: note.id, title: note.title || '', body: note.body || '' }
     : { open: true, id: null, title: '', body: '' };
@@ -114,6 +157,7 @@ function startNote(note = null) {
 }
 
 function startLink(link = null) {
+  linkError.value = '';
   linkDraft.value = link && link.id
     ? { open: true, id: link.id, title: link.title || '', url: link.url || '' }
     : { open: true, id: null, title: link?.title || '', url: link?.url || '' };
@@ -154,17 +198,15 @@ function submitQuick() {
   const res = quickResolution.value;
   let handled = false;
   if (res?.kind === 'shortcut') {
-    const sc = res.shortcut;
-    if (sc.type === 'note' && !sc.body) {
-      startNote({ id: null, title: sc.title || '', body: '' });
-      handled = true;
-    } else if (sc.type === 'link' && !sc.url) {
-      startLink({ id: null, title: sc.title || '', url: '' });
-      handled = true;
-    } else {
-      handled = wb.execShortcut(sc);
+    handled = wb.execShortcut(res.shortcut);
+  } else if (res?.kind === 'intent-list') {
+    let count = 0;
+    for (const act of res.intents || []) {
+      if (wb.execIntent(act)) count++;
     }
-  } else if (res?.kind === 'intent') {
+    handled = count > 0;
+    if (count > 1) wb.showToast(`已连续执行 ${count} 项操作`);
+  } else if (res?.kind === 'intent' || res?.kind === 'todo-intent') {
     handled = wb.execIntent(res.intent);
   } else {
     handled = Boolean(wb.addTodo(text, { bucket: 'today' }));
@@ -224,6 +266,7 @@ function executeAllAiActions() {
 /* ---------------- 首页看板模块定制 ---------------- */
 const customizingBlocks = ref(false);
 const BLOCK_NAMES = {
+  'role-hub': '职业专属工作台',
   matrix: '四象限优先级矩阵',
   tasks: '今日任务清单',
   charts: '收支趋势与分类饼图',
@@ -241,11 +284,12 @@ const SPAN_OPTIONS = [
   { span: 12, label: '通栏' }
 ];
 
-/* ---------------- KPI ---------------- */
+/* ---------------- KPI（按当前职业视角动态重排优先级） ---------------- */
 const heroNow = computed(() => new Date(wb.nowTick.value).toLocaleTimeString('zh-CN', {
   hour: '2-digit', minute: '2-digit', hour12: false
 }));
 const workdayPct = computed(() => wb.todayShift.value.percent);
+const orderedKpis = computed(() => wb.currentRole.value.kpiOrder || ['tasks', 'focus', 'ledger', 'shift']);
 
 /* ---------------- 今日任务 ---------------- */
 const agendaLimit = ref(6);
@@ -258,16 +302,18 @@ function completeTask(task, event) {
   if (!wasDone) burstFrom(event.currentTarget);
 }
 
-function subtaskBadge(taskId) {
-  const subs = wb.getSubtasks(taskId);
-  if (!subs.length) return '';
-  return `${subs.filter(s => s.done).length}/${subs.length}`;
-}
-
-function recurrenceBadge(taskId) {
-  const freq = wb.getTaskRecurrence(taskId);
-  return freq !== 'none' ? wb.RECURRENCE_LABELS[freq] : '';
-}
+const shownTaskMeta = computed(() => {
+  const map = new Map();
+  for (const task of shownTasks.value) {
+    const subs = wb.getSubtasks(task.id);
+    const freq = wb.getTaskRecurrence(task.id);
+    map.set(task.id, {
+      subtask: subs.length ? `${subs.filter(s => s.done).length}/${subs.length}` : '',
+      recurrence: freq !== 'none' ? wb.RECURRENCE_LABELS[freq] : ''
+    });
+  }
+  return map;
+});
 
 /* ---------------- 专注 ---------------- */
 function toggleFocus() { wb.toggleFocusTimer(); }
@@ -278,7 +324,11 @@ const expandedNotes = reactive(new Set());
 
 function saveNote() {
   const d = noteDraft.value;
-  if (!d.title.trim()) return;
+  if (!d.title.trim()) {
+    noteError.value = '请填写便签标题';
+    return;
+  }
+  noteError.value = '';
   if (wb.saveNoteRecord({ id: d.id, title: d.title, body: d.body })) noteDraft.value.open = false;
 }
 
@@ -322,6 +372,22 @@ const noteColumns = computed(() => {
 
 /* ---------------- 工作链接（编辑 + 排序） ---------------- */
 function saveLink() {
+  const title = linkDraft.value.title.trim();
+  const url = linkDraft.value.url.trim();
+  if (!title) {
+    linkError.value = '请填写链接名称';
+    return;
+  }
+  let validUrl = false;
+  try {
+    const parsed = new URL(url);
+    validUrl = parsed.protocol === 'http:' || parsed.protocol === 'https:';
+  } catch { validUrl = false; }
+  if (!validUrl) {
+    linkError.value = '请输入以 http:// 或 https:// 开头的有效网址';
+    return;
+  }
+  linkError.value = '';
   if (wb.saveLinkRecord(linkDraft.value)) {
     linkDraft.value = { open: false, id: null, title: '', url: '' };
   }
@@ -377,11 +443,42 @@ function taskTime(task) {
   if (task.date && task.date < wb.todayStr.value) return `逾期 ${task.date.slice(5)}`;
   return task.time || (task.date ? '今天' : '随时');
 }
+
+/* ---------------- 职业专属工作台中心 (role-hub) ---------------- */
+const activeRoleProject = computed(() => {
+  const list = wb.projectsList.value || [];
+  if (!list.length) return null;
+  const preferredMode = wb.currentRole.value.defaultProjectMode;
+  return (
+    list.find(p => p.status === 'active' && p.mode === preferredMode) ||
+    list.find(p => p.status === 'active') ||
+    list[0]
+  );
+});
+function projectPct(proj) {
+  const ms = proj?.milestones || [];
+  if (!ms.length) return proj?.status === 'done' ? 100 : 0;
+  return Math.round((ms.filter(m => m.done).length / ms.length) * 100);
+}
+const roleHubLinks = computed(() => {
+  const targetCat = wb.currentRole.value.presetCategory;
+  const links = [...(wb.state.links || [])];
+  links.sort((a, b) => {
+    const ma = wb.getLinkMeta(a.url);
+    const mb = wb.getLinkMeta(b.url);
+    const pinDiff = Number(Boolean(mb.pinned)) - Number(Boolean(ma.pinned));
+    if (pinDiff) return pinDiff;
+    const catA = ma.category === targetCat ? 1 : 0;
+    const catB = mb.category === targetCat ? 1 : 0;
+    return catB - catA;
+  });
+  return links.slice(0, 6);
+});
 </script>
 
 <template>
   <div class="home page-shell">
-    <!-- 现代 SaaS 极简指挥头部（替代旧版墨绿大横幅） -->
+    <!-- 现代 SaaS 极简指挥头部 -->
     <section class="saas-header panel glass rim">
       <div class="saas-top-row">
         <div class="saas-identity">
@@ -392,17 +489,27 @@ function taskTime(task) {
             </span>
             <span class="date-label">{{ wb.formattedDate.value }}</span>
             <span class="clock-badge numeric">{{ heroNow }}</span>
+            <button
+              type="button"
+              class="role-trigger-btn"
+              :class="{ 'is-open': showRoleStrip }"
+              @click="roleSwitcherOpen = !roleSwitcherOpen"
+            >
+              <img :src="asset(`assets/icons/${wb.currentRole.value.icon}.svg`)" alt="" />
+              <span>{{ wb.currentRole.value.name }}</span>
+              <img class="role-chevron" :src="asset('assets/icons/chevron-down.svg')" alt="" />
+            </button>
           </div>
-          <h1 class="saas-title">{{ wb.greetingText.value }}，欢迎回到{{ wb.workspaceName.value }}</h1>
+          <h1 class="saas-title">{{ wb.greetingText.value }}</h1>
           <p class="saas-subtitle">
             <template v-if="wb.overdueCount.value">
               <b class="overdue-pill numeric">{{ wb.overdueCount.value }} 项逾期</b>
             </template>
-            {{ todayTasks.length ? `今日共有 ${todayTasks.length} 项待办事项，首要任务：「${todayTasks[0]?.text}」` : '今日暂无待办积压，可通过下方全能命令栏快速录入任务、账目或打卡。' }}
+            {{ todayTasks.length ? `今日 ${todayTasks.length} 项待办，优先处理「${todayTasks[0]?.text}」` : wb.currentRole.value.greetingSubtitle }}
           </p>
         </div>
 
-        <!-- 右侧：紧凑型专注与班次快捷舱 -->
+        <!-- 右侧：紧凑型专注与快捷舱 -->
         <div class="saas-pods">
           <div class="focus-pod">
             <button
@@ -424,8 +531,67 @@ function taskTime(task) {
             <button class="btn btn-soft btn-sm" type="button" @click="wb.openLedgerDialog()">
               <img :src="asset('assets/icons/wallet-cards.svg')" alt="" />记一笔
             </button>
-            <button class="btn btn-primary btn-sm" type="button" @click="openNewTask()">
+            <button class="btn btn-primary btn-sm" type="button" @click="emit('new-task')">
               <img :src="asset('assets/icons/plus.svg')" alt="" />新建任务
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 职业身份与工作台框架选择器（内联展开，不阻塞首屏操作） -->
+      <div v-if="showRoleStrip" class="role-switcher" role="region" aria-label="选择你的工作身份与工作台视角">
+        <div class="role-switcher-head">
+          <div>
+            <strong>选择你的工作身份 · 自动匹配侧栏模块与看板结构</strong>
+            <span>{{ selectedRolePreview.tagline }}</span>
+          </div>
+          <button
+            v-if="!wb.extState.roleChosen && !roleSwitcherOpen"
+            type="button"
+            class="btn btn-text btn-xs"
+            @click="wb.dismissRolePrompt()"
+          >
+            暂不切换
+          </button>
+        </div>
+        <div class="role-tabs" role="radiogroup" aria-label="职业身份列表">
+          <button
+            v-for="r in roleList"
+            :key="r.id"
+            type="button"
+            class="role-tab"
+            :class="{ 'is-active': pendingRoleId === r.id }"
+            :aria-checked="pendingRoleId === r.id"
+            role="radio"
+            @click="pendingRoleId = r.id"
+          >
+            <img :src="asset(`assets/icons/${r.icon}.svg`)" alt="" />
+            <span class="role-tab-copy">
+              <strong>{{ r.name }}</strong>
+              <small>{{ r.badge }}</small>
+            </span>
+          </button>
+        </div>
+        <div class="role-switcher-foot">
+          <label class="role-seed-check">
+            <input v-model="seedRoleLinks" type="checkbox" class="checkbox" />
+            <span>同步导入「{{ selectedRolePreview.name }}」精选常用网站（不重复覆盖已有链接）</span>
+          </label>
+          <div class="role-switcher-actions">
+            <button
+              v-if="roleSwitcherOpen"
+              type="button"
+              class="btn btn-soft btn-sm"
+              @click="roleSwitcherOpen = false"
+            >
+              收起
+            </button>
+            <button
+              type="button"
+              class="btn btn-primary btn-sm"
+              @click="confirmRoleSelection"
+            >
+              应用「{{ selectedRolePreview.name }}」视图
             </button>
           </div>
         </div>
@@ -442,9 +608,9 @@ function taskTime(task) {
             v-model="quickText"
             class="omnibox-input"
             maxlength="200"
-            placeholder="一句话快记：待办排期、记账（如：午餐 35 元）、饮水、提醒，或输入 /help 查看语法指南…"
+            :placeholder="wb.currentRole.value.omniboxPlaceholder"
             aria-label="全能快速录入框"
-            @keydown.esc="manualHelpOpen = false"
+            @keydown.esc="manualHelpOpen = false; aiParsedResult = null"
           />
           <button
             class="omnibox-help-btn"
@@ -468,17 +634,22 @@ function taskTime(task) {
           <button class="btn btn-primary btn-sm omnibox-submit" type="submit">
             {{ quickResolution && quickResolution.kind !== 'todo' && quickResolution.kind !== 'todo-intent' ? '执行' : '录入' }}
           </button>
-          <button class="btn btn-soft btn-sm" type="button" @click="emit('new-task')">
-            <img :src="asset('assets/icons/plus.svg')" alt="" />完整表单
-          </button>
         </form>
 
         <!-- 复合指令解析确认抽屉 -->
-        <div v-if="aiParsedResult" class="omnibox-ai-tray" role="region" aria-label="复合指令解析结果">
+        <div v-if="aiParsedResult" class="omnibox-ai-tray" :class="{ 'is-warning': aiParsedResult.llmFailed }" role="region" aria-label="复合指令解析结果">
           <div class="ai-tray-head">
             <div class="ai-tray-title">
               <img :src="asset('assets/icons/sparkles.svg')" alt="" />
-              <strong>{{ aiParsedResult.mode === 'llm' ? '接口模型复合解析' : '本地复合指令拆解' }}</strong>
+              <strong>
+                {{
+                  aiParsedResult.llmFailed
+                    ? '外部 AI 请求失败，已回退本地拆解'
+                    : aiParsedResult.mode === 'llm'
+                      ? '接口模型复合解析'
+                      : '本地复合指令拆解'
+                }}
+              </strong>
               <span>{{ aiParsedResult.reply }}</span>
               <button
                 v-if="aiParsedResult.mode === 'local'"
@@ -503,7 +674,7 @@ function taskTime(task) {
           </div>
           <ul v-if="aiParsedResult.actions?.length" class="ai-tray-list">
             <li v-for="(act, idx) in aiParsedResult.actions" :key="idx">
-              <span class="ai-act-kind">{{ act.kind === 'ledger' ? '记账' : act.kind === 'todo' ? '任务' : '动作' }}</span>
+              <span class="ai-act-kind">{{ act.kind === 'ledger' ? '记账' : act.kind === 'todo' ? '任务' : act.kind === 'note' ? '便签' : '动作' }}</span>
               <span class="ai-act-summary">{{ act.summary }}</span>
               <button type="button" class="btn btn-soft btn-xs" @click="executeAiAction(act, idx)">执行</button>
             </li>
@@ -514,8 +685,8 @@ function taskTime(task) {
         <div v-else-if="showHelpPanel" class="omnibox-help-popover" role="region" aria-label="快捷输入语法说明">
           <div class="help-pop-head">
             <div>
-              <strong>全能输入框 · 自动识别语法说明</strong>
-              <span>支持自然语言识别记账分类、任务排期、专注时长与日常打卡 · 点击任一示例直接填入</span>
+              <strong>快速输入语法说明</strong>
+              <span>自动识别记账分类、任务排期、专注时长与饮水打卡，点击示例直接填入</span>
             </div>
             <button type="button" class="btn btn-ghost btn-sm" @click="toggleHelpPanel">收起</button>
           </div>
@@ -564,49 +735,51 @@ function taskTime(task) {
         </div>
       </div>
 
-      <!-- 4 栏执行官 KPI 指标带 -->
+      <!-- 4 栏执行官 KPI 指标带（顺序随职业角色自动重排） -->
       <div class="kpi-strip" aria-label="今日关键指标">
-        <article class="kpi-card" @click="wb.goto('todo')">
-          <div class="kpi-top">
-            <span>今日待办事项</span>
-            <span v-if="wb.overdueCount.value" class="kpi-tag is-coral numeric">{{ wb.overdueCount.value }} 逾期</span>
-            <span v-else class="kpi-tag">进行中</span>
-          </div>
-          <strong class="kpi-val numeric">{{ todayTasks.length }}<em>项</em></strong>
-          <small>已完成 {{ reviewDone }} 项 · 点击管理计划</small>
-        </article>
+        <template v-for="kpiKey in orderedKpis" :key="kpiKey">
+          <article v-if="kpiKey === 'tasks'" class="kpi-card" @click="wb.goto('todo')">
+            <div class="kpi-top">
+              <span>今日待办事项</span>
+              <span v-if="wb.overdueCount.value" class="kpi-tag is-coral numeric">{{ wb.overdueCount.value }} 逾期</span>
+              <span v-else class="kpi-tag">进行中</span>
+            </div>
+            <strong class="kpi-val numeric">{{ todayTasks.length }}<em>项</em></strong>
+            <small>已完成 {{ reviewDone }} 项 · 点击管理计划</small>
+          </article>
 
-        <article class="kpi-card" @click="wb.goto('study')">
-          <div class="kpi-top">
-            <span>今日专注累计</span>
-            <span class="kpi-tag is-brand numeric">{{ wb.studyPercent.value }}%</span>
-          </div>
-          <strong class="kpi-val numeric">{{ wb.studyTodayMinutes.value }}<em>分钟</em></strong>
-          <small>近 7 日累计 {{ wb.rhythmStats.value.studyTotalMin }} 分钟</small>
-        </article>
+          <article v-else-if="kpiKey === 'focus'" class="kpi-card" @click="wb.goto('study')">
+            <div class="kpi-top">
+              <span>今日专注累计</span>
+              <span class="kpi-tag is-brand numeric">{{ wb.studyPercent.value }}%</span>
+            </div>
+            <strong class="kpi-val numeric">{{ wb.studyTodayMinutes.value }}<em>分钟</em></strong>
+            <small>近 7 日累计 {{ wb.rhythmStats.value.studyTotalMin }} 分钟</small>
+          </article>
 
-        <article class="kpi-card" @click="wb.goto('ledger')">
-          <div class="kpi-top">
-            <span>本月支出 / 预算</span>
-            <span
-              class="kpi-tag numeric"
-              :class="wb.budgetStatus.value.status === 'over' ? 'is-coral' : wb.budgetStatus.value.status === 'warning' ? 'is-amber' : 'is-brand'"
-            >
-              已用 {{ wb.budgetStatus.value.rawPct }}%
-            </span>
-          </div>
-          <strong class="kpi-val numeric">¥{{ wb.currentMonthSummary.value.expense.toFixed(0) }}</strong>
-          <small>月度预算 ¥{{ wb.monthlyBudget.value }} · 收入 ¥{{ wb.currentMonthSummary.value.income.toFixed(0) }}</small>
-        </article>
+          <article v-else-if="kpiKey === 'ledger'" class="kpi-card" @click="wb.goto('ledger')">
+            <div class="kpi-top">
+              <span>本月支出 / 预算</span>
+              <span
+                class="kpi-tag numeric"
+                :class="wb.budgetStatus.value.status === 'over' ? 'is-coral' : wb.budgetStatus.value.status === 'warning' ? 'is-amber' : 'is-brand'"
+              >
+                已用 {{ wb.budgetStatus.value.rawPct }}%
+              </span>
+            </div>
+            <strong class="kpi-val numeric">¥{{ wb.currentMonthSummary.value.expense.toFixed(0) }}</strong>
+            <small>月度预算 ¥{{ wb.monthlyBudget.value }} · 收入 ¥{{ wb.currentMonthSummary.value.income.toFixed(0) }}</small>
+          </article>
 
-        <article class="kpi-card" @click="wb.goto('habits')">
-          <div class="kpi-top">
-            <span>班次与健康状态</span>
-            <span class="kpi-tag numeric">在岗 {{ workdayPct }}%</span>
-          </div>
-          <strong class="kpi-val numeric">{{ wb.waterTodayMl.value }}<em>ml</em></strong>
-          <small>今日步数 {{ wb.stepsToday.value.toLocaleString() }} 步 · 习惯 {{ wb.habitToday.value.done }}/{{ wb.habitToday.value.total }}</small>
-        </article>
+          <article v-else-if="kpiKey === 'shift'" class="kpi-card" @click="wb.goto('habits')">
+            <div class="kpi-top">
+              <span>班次与健康状态</span>
+              <span class="kpi-tag numeric">在岗 {{ workdayPct }}%</span>
+            </div>
+            <strong class="kpi-val numeric">{{ wb.waterTodayMl.value }}<em>ml</em></strong>
+            <small>今日步数 {{ wb.stepsToday.value.toLocaleString() }} 步 · 习惯 {{ wb.habitToday.value.done }}/{{ wb.habitToday.value.total }}</small>
+          </article>
+        </template>
       </div>
     </section>
 
@@ -706,14 +879,135 @@ function taskTime(task) {
           </button>
         </div>
 
-        <!-- 1. 四象限交互式优先级矩阵 -->
-        <section v-if="block.id === 'matrix'" class="panel glass rim card">
+        <!-- 0. 职业专属工作台中心 -->
+        <section v-if="block.id === 'role-hub'" class="panel glass rim card role-hub-card">
           <div class="panel-head">
             <div>
               <h2 class="panel-title">
-                <img :src="asset('assets/icons/goal.svg')" alt="" />交互式四象限优先级矩阵
+                <img :src="asset(`assets/icons/${wb.currentRole.value.icon}.svg`)" alt="" />
+                {{ wb.currentRole.value.workspaceLabel }} · 专属功能与站点直达
               </h2>
-              <p class="panel-sub">拖拽任务卡片跨象限移动，自动同步更新优先级与今日/排期状态</p>
+              <p class="panel-sub">{{ wb.currentRole.value.tagline }}</p>
+            </div>
+            <div class="panel-actions">
+              <button class="btn btn-soft btn-sm" type="button" @click="roleSwitcherOpen = !roleSwitcherOpen">
+                切换身份
+              </button>
+              <button class="btn btn-text btn-sm" type="button" @click="wb.goto('toolbox')">
+                工具箱<img :src="asset('assets/icons/arrow-up-right.svg')" alt="" />
+              </button>
+            </div>
+          </div>
+
+          <div class="role-hub-grid">
+            <!-- 列 1：项目 / 客户 / 课程进度快照 -->
+            <div class="hub-col">
+              <div class="hub-col-head">
+                <strong>{{ wb.currentRole.value.projectTermLabel }}</strong>
+                <button class="btn btn-text btn-xs" type="button" @click="wb.goto('projects')">
+                  全部看板 →
+                </button>
+              </div>
+              <div v-if="activeRoleProject" class="hub-project-box">
+                <div class="hub-proj-top">
+                  <strong>{{ activeRoleProject.name }}</strong>
+                  <span class="numeric">{{ projectPct(activeRoleProject) }}%</span>
+                </div>
+                <div class="mini-budget-track hub-progress-track">
+                  <i :style="{ width: `${projectPct(activeRoleProject)}%` }"></i>
+                </div>
+                <ul v-if="(activeRoleProject.milestones || []).length" class="hub-ms-list">
+                  <li v-for="ms in activeRoleProject.milestones.slice(0, 3)" :key="ms.id" :class="{ 'is-done': ms.done }">
+                    <label>
+                      <input
+                        type="checkbox"
+                        class="checkbox"
+                        :checked="ms.done"
+                        @change="wb.toggleProjectMilestone(activeRoleProject.id, ms.id)"
+                      />
+                      <span>{{ ms.text }}</span>
+                    </label>
+                  </li>
+                </ul>
+              </div>
+              <div v-else class="hub-empty">
+                <p>暂无推进中的{{ wb.currentRole.value.projectTermLabel }}。</p>
+                <div class="hub-empty-actions">
+                  <button class="btn btn-soft btn-xs" type="button" @click="wb.seedRoleSampleProjects()">
+                    加载「{{ wb.currentRole.value.name }}」示例
+                  </button>
+                  <button class="btn btn-text btn-xs" type="button" @click="wb.goto('projects')">手动创建</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- 列 2：本职业常用工具直达 -->
+            <div class="hub-col">
+              <div class="hub-col-head">
+                <strong>{{ wb.currentRole.value.name }} · 专属实用工具</strong>
+                <button class="btn btn-text btn-xs" type="button" @click="wb.goto('notes')">
+                  知识笔记库 →
+                </button>
+              </div>
+              <div class="hub-tools-list">
+                <button
+                  v-for="tool in wb.currentRole.value.homeTools"
+                  :key="tool.id"
+                  type="button"
+                  class="hub-tool-btn"
+                  @click="wb.openToolbox(tool.group, tool.id)"
+                >
+                  <img :src="asset('assets/icons/zap.svg')" alt="" />
+                  <span>{{ tool.label }}</span>
+                  <img class="hub-tool-arrow" :src="asset('assets/icons/arrow-up-right.svg')" alt="" />
+                </button>
+              </div>
+            </div>
+
+            <!-- 列 3：已记录的本职业常用网站 -->
+            <div class="hub-col">
+              <div class="hub-col-head">
+                <strong>常用网站已记录（{{ wb.state.links.length }}）</strong>
+                <button class="btn btn-text btn-xs" type="button" @click="wb.goto('bookmarks')">
+                  网址导航 →
+                </button>
+              </div>
+              <div v-if="roleHubLinks.length" class="hub-sites-grid">
+                <a
+                  v-for="link in roleHubLinks"
+                  :key="link.id"
+                  class="hub-site-chip"
+                  :href="link.url"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  :title="`${link.title} · ${wb.getLinkMeta(link.url).category}`"
+                  @click="wb.recordLinkVisit(link.url)"
+                >
+                  <span class="hub-site-init" aria-hidden="true">{{ initialOf(link) }}</span>
+                  <span class="hub-site-copy">
+                    <strong>{{ link.title }}</strong>
+                    <small>{{ wb.getLinkMeta(link.url).category }} · {{ hostOf(link.url) }}</small>
+                  </span>
+                </a>
+              </div>
+              <div v-else class="hub-empty">
+                <p>尚未导入网站，点击下方立即写入当前职业网站包。</p>
+                <button class="btn btn-soft btn-xs" type="button" @click="wb.applyRoleFrame(wb.currentRole.value.id, { applyLayout: false, seedLinks: true })">
+                  导入精选网站
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 1. 四象限交互式优先级矩阵 -->
+        <section v-else-if="block.id === 'matrix'" class="panel glass rim card">
+          <div class="panel-head">
+            <div>
+              <h2 class="panel-title">
+                <img :src="asset('assets/icons/goal.svg')" alt="" />四象限优先级矩阵
+              </h2>
+              <p class="panel-sub">拖拽卡片跨象限调整优先级与排期</p>
             </div>
             <div class="panel-actions">
               <button class="btn btn-soft btn-sm" type="button" @click="emit('new-task')">
@@ -729,12 +1023,11 @@ function taskTime(task) {
           <div class="panel-head">
             <div>
               <h2 class="panel-title">
-                <img :src="asset('assets/icons/wallet-cards.svg')" alt="" />财务收支可视化分析
+                <img :src="asset('assets/icons/wallet-cards.svg')" alt="" />收支趋势与分类占比
               </h2>
-              <p class="panel-sub">月度收支趋势折线与消费类别占比环图，支持预算水位实时监控</p>
+              <p class="panel-sub">月度预算执行、收支折线与消费结构</p>
             </div>
             <div class="panel-actions">
-              <button class="btn btn-soft btn-sm" type="button" @click="wb.openLedgerDialog()">+ 记一笔</button>
               <button class="btn btn-text btn-sm" type="button" @click="wb.goto('ledger')">
                 进入账本<img :src="asset('assets/icons/arrow-up-right.svg')" alt="" />
               </button>
@@ -759,8 +1052,8 @@ function taskTime(task) {
 
           <div v-if="!todayTasks.length" class="empty">
             <span class="empty-art" aria-hidden="true"><img :src="asset('assets/icons/list-checks.svg')" alt="" /></span>
-            <strong>暂无今日待办事项</strong>
-            <p>可通过顶部命令框快速录入，或点击下方按钮配置详细排期与子步骤。</p>
+            <strong>暂无今日待办</strong>
+            <p>可通过顶部快速录入栏添加，或点击下方新建完整任务。</p>
             <button class="btn btn-soft btn-sm" type="button" @click="emit('new-task')">新建任务</button>
           </div>
 
@@ -781,8 +1074,11 @@ function taskTime(task) {
                   <span class="prio" :class="task.priority" aria-hidden="true"></span>
                   {{ { high: '高优', medium: '中优', low: '低优' }[task.priority] || '中优' }}
                   · {{ task.tag || '个人计划' }}
-                  <span v-if="subtaskBadge(task.id)" class="sub-pill numeric">子步骤 {{ subtaskBadge(task.id) }}</span>
-                  <span v-if="recurrenceBadge(task.id)" class="sub-pill">↻ {{ recurrenceBadge(task.id) }}</span>
+                  <span v-if="shownTaskMeta.get(task.id)?.subtask" class="sub-pill numeric">子步骤 {{ shownTaskMeta.get(task.id).subtask }}</span>
+                  <span v-if="shownTaskMeta.get(task.id)?.recurrence" class="sub-pill">
+                    <img class="inline-mini-icon" :src="asset('assets/icons/repeat.svg')" alt="" />
+                    {{ shownTaskMeta.get(task.id).recurrence }}
+                  </span>
                   <time class="agenda-time numeric" :class="{ overdue: task.date && task.date < wb.todayStr.value }">{{ taskTime(task) }}</time>
                 </small>
               </div>
@@ -848,17 +1144,28 @@ function taskTime(task) {
                 placeholder="检索便签…"
                 aria-label="检索便签"
               />
+              <button class="btn btn-text btn-sm" type="button" @click="wb.goto('notes')">
+                知识库<img :src="asset('assets/icons/arrow-up-right.svg')" alt="" />
+              </button>
               <button class="btn btn-text btn-sm" type="button" @click="startNote()">
                 <img :src="asset('assets/icons/plus.svg')" alt="" />新建
               </button>
             </div>
           </div>
 
-          <form v-if="noteDraft.open" class="inline-editor" @submit.prevent="saveNote">
-            <input v-model="noteDraft.title" class="input" maxlength="120" required placeholder="便签标题" />
+          <form v-if="noteDraft.open" class="inline-editor" novalidate @submit.prevent="saveNote">
+            <input
+              v-model="noteDraft.title"
+              class="input"
+              :class="{ 'is-invalid': noteError }"
+              maxlength="120"
+              placeholder="便签标题"
+              @input="noteError = ''"
+            />
+            <p v-if="noteError" class="field-error" role="alert">{{ noteError }}</p>
             <textarea v-model="noteDraft.body" class="input" maxlength="5000" rows="3" placeholder="记录会议纪要、技术要点或备忘信息…"></textarea>
             <div class="inline-editor-actions">
-              <button class="btn btn-soft btn-sm" type="button" @click="noteDraft.open = false">取消</button>
+              <button class="btn btn-soft btn-sm" type="button" @click="noteDraft.open = false; noteError = ''">取消</button>
               <button class="btn btn-primary btn-sm" type="submit">保存便签</button>
             </div>
           </form>
@@ -911,25 +1218,46 @@ function taskTime(task) {
           </div>
         </section>
 
-        <!-- 6. 常用链接（支持二次编辑与左右排序） -->
+        <!-- 6. 常用链接（快捷新增与编辑，完整分类与预设库入口跳转网址导航页） -->
         <section v-else-if="block.id === 'links'" class="panel glass rim card workspace-links">
           <div class="panel-head">
             <h2 class="panel-title">
               <img :src="asset('assets/icons/arrow-up-right.svg')" alt="" />常用链接
               <span class="badge numeric">{{ wb.state.links.length }}</span>
             </h2>
-            <button class="btn btn-text btn-sm" type="button" @click="linkDraft.open ? (linkDraft.open = false) : startLink()">
-              <img :src="asset('assets/icons/plus.svg')" alt="" />添加
-            </button>
+            <div class="panel-actions links-head-actions">
+              <button class="btn btn-text btn-sm" type="button" @click="wb.goto('bookmarks')">
+                分类导航<img :src="asset('assets/icons/arrow-up-right.svg')" alt="" />
+              </button>
+              <button class="btn btn-text btn-sm" type="button" @click="linkDraft.open ? (linkDraft.open = false) : startLink()">
+                <img :src="asset('assets/icons/plus.svg')" alt="" />添加
+              </button>
+            </div>
           </div>
 
-          <form v-if="linkDraft.open" class="inline-editor" @submit.prevent="saveLink">
+          <form v-if="linkDraft.open" class="inline-editor" novalidate @submit.prevent="saveLink">
             <div class="inline-two">
-              <input v-model="linkDraft.title" class="input" maxlength="80" required placeholder="链接名称，如：项目仓库" />
-              <input v-model="linkDraft.url" class="input" type="url" maxlength="2000" required placeholder="https://" />
+              <input
+                v-model="linkDraft.title"
+                class="input"
+                :class="{ 'is-invalid': linkError && !linkDraft.title.trim() }"
+                maxlength="80"
+                placeholder="链接名称，如：项目仓库"
+                @input="linkError = ''"
+              />
+              <input
+                v-model="linkDraft.url"
+                class="input"
+                :class="{ 'is-invalid': linkError && linkDraft.title.trim() }"
+                type="url"
+                maxlength="2000"
+                placeholder="https://"
+                @input="linkError = ''"
+              />
             </div>
+            <p v-if="linkError" class="field-error" role="alert">{{ linkError }}</p>
             <div class="inline-editor-actions">
-              <button class="btn btn-soft btn-sm" type="button" @click="linkDraft.open = false">取消</button>
+              <button class="btn btn-soft btn-sm" type="button" @click="linkDraft.open = false; linkError = ''">取消</button>
               <button class="btn btn-primary btn-sm" type="submit">{{ linkDraft.id ? '更新链接' : '保存链接' }}</button>
             </div>
           </form>
@@ -938,9 +1266,9 @@ function taskTime(task) {
             v-if="!wb.state.links.length"
             icon="arrow-up-right"
             title="暂无常用链接"
-            text="收藏高频访问的文档、代码库或内部系统。"
-            action-label="添加链接"
-            @action="startLink()"
+            text="收藏高频访问的文档、代码库，或前往「网址导航」管理按职业推荐的站点。"
+            action-label="前往网址导航"
+            @action="wb.goto('bookmarks')"
           />
           <div v-else class="link-grid">
             <a
@@ -951,11 +1279,12 @@ function taskTime(task) {
               target="_blank"
               rel="noopener noreferrer"
               :title="link.url"
+              @click="wb.recordLinkVisit(link.url)"
             >
               <span class="link-initial" aria-hidden="true">{{ initialOf(link) }}</span>
               <span class="link-copy">
                 <strong>{{ link.title }}</strong>
-                <small>{{ hostOf(link.url) }}</small>
+                <small>{{ wb.getLinkMeta(link.url).category }} · {{ hostOf(link.url) }}</small>
               </span>
               <span class="link-tools" @click.prevent.stop>
                 <button
@@ -1090,12 +1419,12 @@ function taskTime(task) {
 }
 .status-pill {
   display: inline-flex; align-items: center; gap: 6px;
-  padding: 3px 10px; border-radius: 999px;
+  padding: 2px 9px; border-radius: 7px;
   background: var(--surface-soft); border: 1px solid var(--line);
   color: var(--ink-soft); font-weight: 650;
 }
 .status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); }
-.status-dot.active { background: var(--brand); box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 22%, transparent); }
+.status-dot.active { background: var(--brand); }
 .date-label { font-weight: 550; }
 .clock-badge {
   padding: 2px 8px; border-radius: 6px;
@@ -1196,12 +1525,17 @@ function taskTime(task) {
   box-shadow: var(--shadow-md);
   display: flex; flex-direction: column; gap: 10px;
 }
+.omnibox-ai-tray.is-warning {
+  border-color: color-mix(in srgb, var(--amber) 45%, var(--line));
+  background: color-mix(in srgb, var(--amber-pale) 36%, var(--surface));
+}
 .ai-tray-head {
   display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;
 }
 .ai-tray-title { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; font-size: var(--text-sm); }
 .ai-tray-title img { width: 15px; height: 15px; }
 .ai-tray-title strong { color: var(--brand-deep); font-weight: 700; }
+.omnibox-ai-tray.is-warning .ai-tray-title strong { color: var(--amber); }
 .ai-tray-title span { color: var(--muted); font-size: var(--text-meta); }
 .ai-tray-actions { display: flex; align-items: center; gap: 6px; }
 .ai-tray-list {
@@ -1390,8 +1724,10 @@ function taskTime(task) {
   font-size: var(--text-meta); color: var(--muted); min-width: 0;
 }
 .sub-pill {
-  padding: 0 5px; border-radius: 4px; background: var(--brand-pale); color: var(--brand-deep);
-  font-size: 10.5px; font-weight: 650;
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 0 6px; border-radius: 5px;
+  background: var(--surface); border: 1px solid var(--line);
+  color: var(--ink-soft); font-size: 10.5px; font-weight: 600;
 }
 .prio { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); }
 .prio.high { background: var(--coral); }
@@ -1440,8 +1776,6 @@ function taskTime(task) {
 .note-head h4 { font-size: var(--text-body); font-weight: 650; line-height: 1.4; overflow-wrap: anywhere; }
 .note-tools { display: flex; gap: 1px; opacity: 0; transition: opacity var(--motion-fast); }
 .note:hover .note-tools, .note:focus-within .note-tools { opacity: 1; }
-.btn-xs { width: 26px; height: 26px; flex-basis: 26px; border-radius: 7px; }
-.btn-xs img { width: 13px; height: 13px; }
 .note-body { margin-top: 6px; font-size: var(--text-meta); color: var(--ink-soft); line-height: 1.65; white-space: pre-wrap; overflow-wrap: anywhere; }
 .note-expand-btn {
   margin-top: 6px; padding: 0; border: 0; background: transparent;
@@ -1472,6 +1806,9 @@ function taskTime(task) {
   opacity: 0; transition: opacity var(--motion-fast);
 }
 .link-card:hover .link-tools, .link-card:focus-within .link-tools { opacity: 1; }
+@media (hover: none), (pointer: coarse) {
+  .note-tools, .link-tools { opacity: 1; }
+}
 
 /* 收支 / 预算 / 趋势 */
 .month-grid, .rhythm-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
@@ -1519,14 +1856,133 @@ function taskTime(task) {
   .block, .block.span-4, .block.span-6, .block.span-8, .block.span-12 { grid-column: span 12; }
   .help-pop-grid { grid-template-columns: 1fr; }
 }
+/* 职业身份切换器与精选网站预设库 */
+.role-trigger-btn {
+  display: inline-flex; align-items: center; gap: 5px;
+  min-height: 26px; padding: 0 9px; border-radius: 7px;
+  border: 1px solid var(--line); background: var(--surface-soft);
+  color: var(--ink-soft); font-size: var(--text-2xs); font-weight: 650;
+  transition: border-color var(--motion-fast), background-color var(--motion-fast), color var(--motion-fast);
+}
+.role-trigger-btn:hover, .role-trigger-btn.is-open {
+  border-color: color-mix(in srgb, var(--brand) 36%, var(--line));
+  background: var(--brand-pale); color: var(--brand-deep);
+}
+.role-trigger-btn img { width: 13px; height: 13px; opacity: .78; }
+.role-chevron { width: 12px !important; height: 12px !important; transition: transform var(--motion-fast); }
+.role-trigger-btn.is-open .role-chevron { transform: rotate(180deg); }
+
+.role-switcher {
+  display: flex; flex-direction: column; gap: 12px;
+  padding: 14px 16px; border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--brand) 28%, var(--line));
+  background: var(--surface-soft);
+}
+.role-switcher-head {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+}
+.role-switcher-head strong { display: block; font-size: var(--text-sm); font-weight: 700; color: var(--ink); }
+.role-switcher-head span { display: block; margin-top: 2px; font-size: var(--text-meta); color: var(--muted); }
+.role-tabs {
+  display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px;
+}
+.role-tab {
+  display: flex; align-items: center; gap: 9px; text-align: left;
+  min-height: 50px; padding: 8px 10px; border-radius: 10px;
+  border: 1px solid var(--line); background: var(--surface); color: var(--ink-soft);
+  transition: border-color var(--motion-fast), background-color var(--motion-fast), color var(--motion-fast);
+}
+.role-tab img { width: 16px; height: 16px; flex: 0 0 16px; opacity: .7; }
+.role-tab:hover { border-color: var(--line-strong); color: var(--ink); }
+.role-tab.is-active {
+  border-color: var(--brand); background: var(--brand-pale); color: var(--brand-deep);
+}
+.role-tab.is-active img { opacity: 1; }
+.role-tab-copy { display: flex; flex-direction: column; min-width: 0; }
+.role-tab-copy strong { font-size: var(--text-sm); font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.role-tab-copy small { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.role-switcher-foot {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+}
+.role-seed-check {
+  display: inline-flex; align-items: center; gap: 7px;
+  font-size: var(--text-meta); color: var(--ink-soft); cursor: pointer;
+}
+.role-switcher-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+
+.links-head-actions { display: flex; align-items: center; gap: 6px; }
+.hub-progress-track { margin: 6px 0 8px; }
+
+@media (max-width: 1080px) {
+  .role-tabs { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+/* 职业专属工作台 Hub */
+.role-hub-grid {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px;
+}
+.hub-col {
+  display: flex; flex-direction: column; gap: 10px;
+  padding: 12px 14px; border-radius: 12px;
+  border: 1px solid var(--line); background: var(--surface-soft); min-width: 0;
+}
+.hub-col-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 6px;
+}
+.hub-col-head strong { font-size: var(--text-sm); font-weight: 700; color: var(--ink); }
+.hub-proj-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: var(--text-sm); }
+.hub-proj-top strong { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hub-proj-top span { color: var(--brand-deep); font-weight: 700; }
+.hub-ms-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
+.hub-ms-list label { display: flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--ink-soft); cursor: pointer; }
+.hub-ms-list li.is-done span { text-decoration: line-through; color: var(--muted); }
+.hub-empty { display: flex; flex-direction: column; gap: 8px; font-size: 12.5px; color: var(--muted); }
+.hub-empty p { margin: 0; line-height: 1.5; }
+.hub-empty-actions { display: flex; align-items: center; gap: 6px; }
+.hub-tools-list { display: flex; flex-direction: column; gap: 7px; }
+.hub-tool-btn {
+  display: flex; align-items: center; gap: 8px;
+  min-height: 36px; padding: 0 10px; border-radius: 9px;
+  border: 1px solid var(--line); background: var(--surface);
+  color: var(--ink); font-size: var(--text-sm); font-weight: 600; text-align: left;
+  transition: border-color var(--motion-fast), background-color var(--motion-fast);
+}
+.hub-tool-btn:hover { border-color: var(--brand); background: var(--brand-pale); color: var(--brand-deep); }
+.hub-tool-btn img { width: 14px; height: 14px; opacity: .75; }
+.hub-tool-btn span { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hub-tool-arrow { margin-left: auto; opacity: .45 !important; }
+.hub-sites-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
+.hub-site-chip {
+  display: flex; align-items: center; gap: 8px; min-width: 0;
+  padding: 7px 9px; border-radius: 9px;
+  border: 1px solid var(--line); background: var(--surface);
+  text-decoration: none; color: var(--ink);
+  transition: border-color var(--motion-fast), transform var(--motion-fast);
+}
+.hub-site-chip:hover { border-color: var(--brand); transform: translateY(-1px); }
+.hub-site-init {
+  width: 26px; height: 26px; flex: 0 0 26px; border-radius: 7px;
+  display: grid; place-items: center;
+  background: var(--brand-pale); color: var(--brand-deep);
+  font-size: 12px; font-weight: 750;
+}
+.hub-site-copy { display: flex; flex-direction: column; min-width: 0; }
+.hub-site-copy strong { font-size: 12px; font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hub-site-copy small { font-size: 10.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+@media (max-width: 1120px) {
+  .role-hub-grid { grid-template-columns: 1fr; }
+}
 @media (max-width: 680px) {
+  .role-tabs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .hub-sites-grid { grid-template-columns: 1fr; }
   .saas-header { padding: 18px 16px; }
   .saas-pods { width: 100%; flex-direction: column; align-items: stretch; }
   .quick-action-pod { flex-direction: row; }
   .quick-action-pod .btn { flex: 1; }
   .omnibox-bar { flex-wrap: wrap; padding: 8px; }
-  .omnibox-input { flex-basis: calc(100% - 30px); }
-  .omnibox-submit { flex: 1; }
+  .omnibox-input { flex: 1 1 calc(100% - 28px); min-width: 0; }
+  .omnibox-help-btn, .omnibox-ai-btn { flex: 0 0 auto; }
+  .omnibox-submit { flex: 1; min-width: 72px; }
   .kpi-strip { grid-template-columns: 1fr; }
   .note-tools, .link-tools { opacity: 1; }
   .inline-two { grid-template-columns: 1fr; }

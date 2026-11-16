@@ -97,13 +97,14 @@ onBeforeUnmount(() => window.removeEventListener('scroll', onScroll));
   </header>
 </template>
 
-<style scoped>.topbar-mini {
-  display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 12px;
-  border: 1px solid var(--line); border-radius: 99px; background: color-mix(in srgb, var(--surface) 62%, transparent);
+<style scoped>
+.topbar-mini {
+  display: inline-flex; align-items: center; gap: 6px; height: 38px; padding: 0 11px;
+  border: 1px solid var(--line); border-radius: var(--radius-control); background: color-mix(in srgb, var(--surface) 74%, transparent);
   color: var(--ink-soft); font-size: 12px; font-weight: 600;
   transition: border-color var(--motion-fast), background var(--motion-fast);
 }
-.topbar-mini img { width: 15px; height: 15px; opacity: .6; }
+.topbar-mini img { width: 15px; height: 15px; opacity: .65; }
 .topbar-mini:hover { border-color: var(--line-strong); background: var(--surface); }
 
 .topbar {
@@ -194,13 +195,17 @@ kbd {
   .command-trigger span, .command-trigger kbd { display: none; }
 }
 @media (max-width: 860px) {
-  .topbar { top: 8px; margin: 0 8px; border-radius: var(--radius-card); min-height: 56px; padding: 6px 8px; }
-  .menu-btn { display: grid; }
+  .topbar { top: 8px; margin: 0; border-radius: var(--radius-card); min-height: 58px; padding: 6px 8px; gap: 8px; }
+  .topbar-actions { gap: 4px; }
+  .menu-btn { display: grid; width: 44px; height: 44px; flex-basis: 44px; }
+  .command-trigger { width: 44px; min-height: 44px; padding: 0; justify-content: center; }
+  .topbar-mini { width: 44px; height: 44px; padding: 0; justify-content: center; }
+  .notif-btn { width: 44px; height: 44px; flex-basis: 44px; }
   .crumb-now { display: none; }
-  .weather-pill { padding: 0 8px; }
+  .weather-pill { min-height: 44px; padding: 0 8px; }
   .weather-pill small { display: none; }
   .avatar-name { display: none; }
-  .topbar-avatar { padding: 3px; border-color: transparent; background: transparent; box-shadow: none; }
+  .topbar-avatar { min-width: 44px; min-height: 44px; justify-content: center; padding: 3px; border-color: transparent; background: transparent; box-shadow: none; }
 }
 @media (max-width: 560px) {
   .crumb { display: none; }

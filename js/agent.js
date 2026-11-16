@@ -228,10 +228,26 @@ export function understand(text, state, now = new Date()) {
 
   const shortcut = resolveLocalShortcut(text);
   if (shortcut) {
-    const pages = { sport: '运动', habits: '健康打卡', study: '专注', calendar: '日历与提醒', todo: '待办' };
+    const pages = {
+      home: '首页',
+      todo: '待办',
+      study: '专注',
+      habits: '健康打卡',
+      sport: '运动',
+      ledger: '账本',
+      calendar: '日历与提醒',
+      notes: '便签知识库',
+      projects: '项目看板',
+      bookmarks: '网址导航',
+      toolbox: '工具箱',
+      standup: '工作日报',
+      weather: '天气',
+      me: '偏好设置'
+    };
+    const pageName = pages[shortcut.page] || '对应';
     return {
       shortcut, intent: null, needConfirm: false,
-      reply: shortcut.kind === 'prefill' ? `可打开${pages[shortcut.page]}并预填表单；尚未保存记录。` : `可打开${pages[shortcut.page]}页面。`
+      reply: shortcut.kind === 'prefill' ? `可打开${pageName}并预填表单；尚未保存记录。` : `可打开${pageName}页面。`
     };
   }
 
@@ -401,31 +417,48 @@ function parseLLMContent(content) {
 }
 
 /**
- * OpenAI / DeepSeek 兼容接口；仅发送 text，state 必须由调用方显式传入。
- * 第四参数可传 { signal, timeoutMs }；失败提供可展示的 reply/error，未配置仍返回 null。
- * 返回的 actions 只是经 schema 检查的建议，必须由用户确认后才执行。
+ * 统一的 OpenAI 兼容 /chat/completions 请求通道。
+ * 供 askLLM 与 ai-assist.js 共同使用：含严格配置校验、超时取消、响应长度和 finish_reason 保护。
  */
-export async function askLLM(text, cfg = loadAgentConfig(), state = null, options = {}) {
-  // 保持未启用/无密钥时返回 null 的旧契约；其他无效配置提供明确错误。
+export async function requestChatCompletion(options = {}, cfg = loadAgentConfig()) {
   if (!configObject(cfg) || !cfg.provider || cfg.provider === 'none' ||
-    cfg.apiKey === undefined || typeof cfg.apiKey === 'string' && !cfg.apiKey.trim()) return null;
+    cfg.apiKey === undefined || typeof cfg.apiKey === 'string' && !cfg.apiKey.trim()) {
+    return { ok: false, unconfigured: true, error: 'unconfigured', reply: '尚未配置有效的 AI 接口密钥。' };
+  }
   const validation = validateAgentConfig(cfg, { requireKey: true });
-  if (!validation.valid) return llmError(validation.error, validation.reply);
+  if (!validation.valid) return { ok: false, error: validation.error, reply: validation.reply };
   const { endpoint, model } = validation;
-  const { signal, timeoutMs = 30_000 } = options || {};
-  const history = Array.isArray(options?.history)
-    ? options.history
-      .filter(message => configObject(message) &&
-        ['user', 'assistant'].includes(message.role) &&
-        typeof message.content === 'string' && message.content.trim() &&
-        message.content.length <= 20_000)
-      .slice(-8)
-    : [];
+  const {
+    systemPrompt = '',
+    userPrompt = '',
+    messages: customMessages = null,
+    maxTokens,
+    temperature = 0.2,
+    signal,
+    timeoutMs = 20_000
+  } = options || {};
+
   if (!positiveNumber(timeoutMs, 600_000) || signal &&
     (typeof signal.addEventListener !== 'function' || typeof signal.removeEventListener !== 'function')) {
-    return llmError('invalid_config', 'AI 请求超时或取消参数无效。');
+    return { ok: false, error: 'invalid_config', reply: 'AI 请求超时或取消参数无效。' };
   }
-  if (signal?.aborted) return llmError('aborted', 'AI 请求已取消，未生成任何操作。');
+  if (signal?.aborted) return { ok: false, error: 'aborted', reply: 'AI 请求已取消，未生成任何操作。' };
+
+  const messages = Array.isArray(customMessages) && customMessages.length
+    ? customMessages
+    : [
+        ...(systemPrompt ? [{ role: 'system', content: String(systemPrompt) }] : []),
+        { role: 'user', content: String(userPrompt ?? '') }
+      ];
+
+  const payload = {
+    model: model.trim(),
+    messages,
+    temperature: typeof temperature === 'number' && Number.isFinite(temperature) ? temperature : 0.2
+  };
+  if (positiveNumber(maxTokens, 32_000)) {
+    payload.max_tokens = Math.round(maxTokens);
+  }
 
   const controller = new AbortController();
   let timeout, cancellation;
@@ -442,19 +475,6 @@ export async function askLLM(text, cfg = loadAgentConfig(), state = null, option
   signal?.addEventListener('abort', cancellation, { once: true });
   timeout = setTimeout(() => stop('timeout'), timeoutMs);
 
-  const sys = [
-    cfg.persona || DEFAULT_AGENT.persona,
-    `今天是 ${dateKey(new Date())}。`,
-    '用户正在使用个人办公工作台。使用正式、简洁的中文，不使用表情符号；没有数据依据时说明限制。',
-    '一句话可能包含多条互相独立的指令：为每条指令各生成一个 action，按用户说出的顺序返回，不要合并或只处理第一条。',
-    '你可以建议动作，但必须以 JSON 数组返回，格式如：',
-    '[{"kind":"ledger","type":"expense","amount":28,"note":"午饭","cat":"🍚 吃饭"}]',
-    '可选 kind：ledger / todo / water / steps / study。不需要动作时返回空数组。不得输出 focus、reminder、navigate 或其他动作；启动计时和相对提醒仅由本地明确命令处理。',
-    '数值必须是正数且有明确依据；steps 表示设置今天总步数，不是累加。',
-    'todo 的 date 为 YYYY-MM-DD，time 可选且为 HH:mm；不要猜测模糊数字或意图。',
-    '回答要简短（不超过 100 字），最后单独一行输出 ACTIONS: <json>'
-  ].join('\n');
-
   try {
     const request = async () => {
       const response = await fetch(endpoint, {
@@ -464,41 +484,78 @@ export async function askLLM(text, cfg = loadAgentConfig(), state = null, option
         referrerPolicy: 'no-referrer',
         signal: controller.signal,
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${cfg.apiKey.trim()}` },
-        body: JSON.stringify({
-          model: model.trim(),
-          messages: [
-            { role: 'system', content: sys },
-            ...(state !== null && state !== undefined ? [{ role: 'system', content: '当前数据摘要：' + buildDailyBrief(state) }] : []),
-            ...history,
-            { role: 'user', content: String(text ?? '') }
-          ],
-          temperature: 0.4
-        })
+        body: JSON.stringify(payload)
       });
       if (!response?.ok) {
         const status = Number.isInteger(response?.status) ? `（HTTP ${response.status}）` : '';
-        return llmError('http', `AI 服务请求失败${status}，请检查服务地址、模型和 API Key。`, response?.status);
+        return { ok: false, error: 'http', status: response?.status, reply: `AI 服务请求失败${status}，请检查服务地址、模型和 API Key。` };
       }
       let data;
       try { data = await response.json(); }
-      catch { return llmError('invalid_response', 'AI 服务返回了无效 JSON，未生成任何操作。'); }
+      catch { return { ok: false, error: 'invalid_response', reply: 'AI 服务返回了无效 JSON，未生成任何操作。' }; }
       const content = data?.choices?.[0]?.message?.content;
       if (typeof content !== 'string' || !content.trim() || content.length > 100_000 ||
         !Array.isArray(data.choices) || !configObject(data.choices[0]?.message) ||
         ['length', 'content_filter', 'tool_calls'].includes(data.choices[0]?.finish_reason)) {
-        return llmError('invalid_response', 'AI 服务返回的内容缺失、被截断或格式不正确，未生成任何操作。');
+        return { ok: false, error: 'invalid_response', reply: 'AI 服务返回的内容缺失、被截断或格式不正确，未生成任何操作。' };
       }
-      return parseLLMContent(content);
+      return { ok: true, content };
     };
     return await Promise.race([request(), stopped]);
   } catch (e) {
-    if (stopReason === 'timeout') return llmError('timeout', 'AI 请求超时，已停止等待，请稍后重试。');
-    if (stopReason === 'aborted' || e?.name === 'AbortError') return llmError('aborted', 'AI 请求已取消，未生成任何操作。');
-    return llmError('network', '无法连接 AI 服务，请检查网络、服务地址及跨域设置。');
+    if (stopReason === 'timeout') return { ok: false, error: 'timeout', reply: 'AI 请求超时，已停止等待，请稍后重试。' };
+    if (stopReason === 'aborted' || e?.name === 'AbortError') return { ok: false, error: 'aborted', reply: 'AI 请求已取消，未生成任何操作。' };
+    return { ok: false, error: 'network', reply: '无法连接 AI 服务，请检查网络、服务地址及跨域设置。' };
   } finally {
     clearTimeout(timeout);
     signal?.removeEventListener('abort', cancellation);
   }
+}
+
+/**
+ * OpenAI / DeepSeek 兼容接口；仅发送 text，state 必须由调用方显式传入。
+ * 第四参数可传 { signal, timeoutMs }；失败提供可展示的 reply/error，未配置仍返回 null。
+ * 返回的 actions 只是经 schema 检查的建议，必须由用户确认后才执行。
+ */
+export async function askLLM(text, cfg = loadAgentConfig(), state = null, options = {}) {
+  // 保持未启用/无密钥时返回 null 的旧契约；其他无效配置提供明确错误。
+  if (!configObject(cfg) || !cfg.provider || cfg.provider === 'none' ||
+    cfg.apiKey === undefined || typeof cfg.apiKey === 'string' && !cfg.apiKey.trim()) return null;
+  const validation = validateAgentConfig(cfg, { requireKey: true });
+  if (!validation.valid) return llmError(validation.error, validation.reply);
+  const { signal, timeoutMs = 30_000 } = options || {};
+  const history = Array.isArray(options?.history)
+    ? options.history
+      .filter(message => configObject(message) &&
+        ['user', 'assistant'].includes(message.role) &&
+        typeof message.content === 'string' && message.content.trim() &&
+        message.content.length <= 20_000)
+      .slice(-8)
+    : [];
+
+  const sys = [
+    cfg.persona || DEFAULT_AGENT.persona,
+    `今天是 ${dateKey(new Date())}。`,
+    '用户正在使用个人办公工作台。使用正式、简洁的中文，不使用表情符号；没有数据依据时说明限制。',
+    '一句话可能包含多条互相独立的指令：为每条指令各生成一个 action，按用户说出的顺序返回，不要合并或只处理第一条。',
+    '你可以建议动作，但必须以 JSON 数组返回，格式如：',
+    '[{"kind":"ledger","type":"expense","amount":28,"note":"午饭","cat":"吃饭"}]',
+    '可选 kind：ledger / todo / water / steps / study。不需要动作时返回空数组。不得输出 focus、reminder、navigate 或其他动作；启动计时和相对提醒仅由本地明确命令处理。',
+    '数值必须是正数且有明确依据；steps 表示设置今天总步数，不是累加。',
+    'todo 的 date 为 YYYY-MM-DD，time 可选且为 HH:mm；不要猜测模糊数字或意图。',
+    '回答要简短（不超过 100 字），最后单独一行输出 ACTIONS: <json>'
+  ].join('\n');
+
+  const messages = [
+    { role: 'system', content: sys },
+    ...(state !== null && state !== undefined ? [{ role: 'system', content: '当前数据摘要：' + buildDailyBrief(state) }] : []),
+    ...history,
+    { role: 'user', content: String(text ?? '') }
+  ];
+
+  const res = await requestChatCompletion({ messages, temperature: 0.4, signal, timeoutMs }, cfg);
+  if (!res.ok) return llmError(res.error, res.reply, res.status);
+  return parseLLMContent(res.content);
 }
 
 function positiveNumber(value, max, min = 0) {
@@ -541,7 +598,7 @@ export function normalizeAction(a) {
       if (!['income', 'expense'].includes(a.type) || !positiveNumber(a.amount, 1_000_000_000, 0.000001) ||
         a.note !== undefined && !safeText(a.note, 300) || a.cat !== undefined && !safeText(a.cat, 80)) return null;
       return { kind: 'ledger', payload: {
-        type: a.type, amount: a.amount, note: a.note?.trim() || 'AI 记账', cat: a.cat?.trim() || '🎁 其他'
+        type: a.type, amount: a.amount, note: a.note?.trim() || 'AI 记账', cat: a.cat?.trim() || '其他'
       } };
     }
     case 'todo': {

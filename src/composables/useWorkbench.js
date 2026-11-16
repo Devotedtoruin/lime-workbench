@@ -8,13 +8,13 @@ import {
 import { defaultState, parseBackup, MAX_BACKUP_CHARS, validateText, TEXT_LIMITS, COLLECTION_LIMITS } from '../../js/state.js';
 import { createStateStore, unavailableStorage, STORAGE_KEY } from '../../js/storage.js';
 import {
-  defaultAppearance, loadAppearance, saveAppearance, applyAppearance, resetAppearance, WIDGET_NAMES
+  defaultAppearance, loadAppearance, saveAppearance, applyAppearance, resetAppearance, validateAppearance, WIDGET_NAMES
 } from '../../js/appearance.js';
 import {
   PRESETS, TIMER_PRESETS, makeInterval, makeTimer, makeDaily, makeOnce,
   pauseReminder, resumeReminder, scanDue, advance, progress, humanRemain, chime
 } from '../../js/reminders.js';
-import { CATEGORIES, categoryIcon, preview, parseCommand } from '../../js/command.js';
+import { CATEGORIES, categoryIcon, preview, parseCommand, normalizeLedgerCategory } from '../../js/command.js';
 import { remainingFocus, settleFocus, startFocus, pauseFocus, resetFocus } from '../../js/focus.js';
 import { upsertAlert, ackAlert, snoozeAlert, visibleAlerts, upcomingEntries, removeSourceAlerts } from '../../js/alerts.js';
 import { taskBucket, selectTodayTasks, uniqueTaskById } from '../../js/tasks.js';
@@ -25,6 +25,11 @@ import {
 } from '../../js/habits.js';
 import { workspaceNameOf } from '../../js/branding.js';
 import { INPUT_RULES, inRange } from '../../js/input-rules.js';
+import {
+  ROLE_IDS, ROLE_PROFILES, WEBSITE_CATALOG, NOTE_FOLDERS,
+  canonicalUrlKey, getRoleProfile, getRolePresetLinks,
+  isValidRoleId, planLinkImports, resolveRoleBlocks
+} from '../../js/roles.js';
 
 const RAIL_COLLAPSED_KEY = 'lime-rail-collapsed-v2';
 const BLOCKS_LAYOUT_KEY = 'lime-blocks-layout-v2';
@@ -32,6 +37,7 @@ const STANDUP_DRAFT_KEY = 'lime-standup-draft-v1';
 const EXT_STORAGE_KEY = 'lime-workbench-ext-v1';
 
 export const DEFAULT_BLOCKS = [
+  { id: 'role-hub', title: '职业专属工作台', span: 12, core: true },
   { id: 'matrix', title: '四象限优先级矩阵', span: 8, widget: 'tasks' },
   { id: 'tasks', title: '今日任务清单', span: 4, core: true },
   { id: 'charts', title: '月度收支与分类图表', span: 8, widget: 'ledger' },
@@ -57,9 +63,13 @@ export const SPORTS = [
 export const PAGE_LABELS = {
   home: '今天',
   todo: '计划',
+  projects: '项目进度',
   study: '专注',
   standup: '日报',
   calendar: '日历与提醒',
+  bookmarks: '网址导航',
+  notes: '知识笔记库',
+  toolbox: '职业工具箱',
   ledger: '账本',
   habits: '生活习惯',
   sport: '运动',
@@ -114,18 +124,79 @@ export function useWorkbench() {
     try { localStore.setItem(RAIL_COLLAPSED_KEY, String(railCollapsed.value)); } catch { /* ignore */ }
   }
 
-  // 扩展存储状态（子任务清单、周期性任务规则、月度预算水位线、历史日报归档、独立模块显隐、默认休息时长、月度账单确认状态）
+  // 扩展存储状态（子任务清单、周期性任务规则、月度预算水位线、历史日报归档、独立模块显隐、默认休息时长、月度账单确认状态、多职业角色配置、网址/笔记扩展元数据与项目看板）
   function cleanExtState() {
     return {
       monthlyBudget: 3000,
       breakMinutes: 5,
+      roleId: 'general',
+      roleChosen: false,
+      roleLinksSeeded: false,
+      showAllModules: false,
       subtasks: {},
       recurrence: {},
       reportArchive: [],
       hiddenBlocks: [],
       confirmedMonthlyBills: {},
-      skippedMonthlyBills: {}
+      skippedMonthlyBills: {},
+      linkMeta: {},
+      noteMeta: {},
+      projects: []
     };
+  }
+  function sanitizeLinkMeta(raw) {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+    const out = {};
+    for (const [key, val] of Object.entries(raw)) {
+      if (!val || typeof val !== 'object' || Array.isArray(val)) continue;
+      out[key] = {
+        category: String(val.category || '通用效率').slice(0, 24),
+        desc: String(val.desc || '').slice(0, 120),
+        pinned: Boolean(val.pinned),
+        visits: Math.max(0, Number(val.visits) || 0),
+        lastVisitedAt: Math.max(0, Number(val.lastVisitedAt) || 0)
+      };
+    }
+    return out;
+  }
+  function sanitizeNoteMeta(raw) {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+    const out = {};
+    for (const [key, val] of Object.entries(raw)) {
+      if (!val || typeof val !== 'object' || Array.isArray(val)) continue;
+      const folder = String(val.folder || '工作复盘').slice(0, 24);
+      out[String(key)] = {
+        folder: NOTE_FOLDERS.includes(folder) ? folder : folder || '工作复盘',
+        pinned: Boolean(val.pinned)
+      };
+    }
+    return out;
+  }
+  function sanitizeProjects(raw) {
+    if (!Array.isArray(raw)) return [];
+    const validModes = new Set(['milestone', 'client', 'course']);
+    const validStatus = new Set(['active', 'done', 'paused']);
+    return raw.slice(0, 80).filter(p => p && typeof p === 'object' && String(p.name || '').trim()).map(p => ({
+      id: String(p.id || `proj-${Date.now()}`),
+      mode: validModes.has(p.mode) ? p.mode : 'milestone',
+      name: String(p.name).trim().slice(0, 80),
+      meta: String(p.meta || '').trim().slice(0, 100),
+      target: String(p.target || '').trim().slice(0, 140),
+      status: validStatus.has(p.status) ? p.status : 'active',
+      amount: Math.max(0, Number(p.amount) || 0),
+      paidRecorded: Boolean(p.paidRecorded),
+      paidAt: Number(p.paidAt) || 0,
+      deadline: /^\d{4}-\d{2}-\d{2}$/.test(String(p.deadline || '')) ? String(p.deadline) : '',
+      milestones: Array.isArray(p.milestones)
+        ? p.milestones.slice(0, 40).filter(m => m && String(m.text || '').trim()).map((m, idx) => ({
+          id: String(m.id || `ms-${Date.now()}-${idx}`),
+          text: String(m.text).trim().slice(0, 120),
+          done: Boolean(m.done)
+        }))
+        : [],
+      createdAt: Number(p.createdAt) || Date.now(),
+      updatedAt: Number(p.updatedAt) || Date.now()
+    }));
   }
   function loadExtState() {
     const fallback = cleanExtState();
@@ -137,6 +208,10 @@ export function useWorkbench() {
       return {
         monthlyBudget: Number.isFinite(budget) && budget >= 100 && budget <= 10_000_000 ? budget : 3000,
         breakMinutes: Number.isInteger(bMins) && bMins >= 1 && bMins <= 120 ? bMins : 5,
+        roleId: isValidRoleId(parsed.roleId) ? parsed.roleId : 'general',
+        roleChosen: Boolean(parsed.roleChosen),
+        roleLinksSeeded: Boolean(parsed.roleLinksSeeded),
+        showAllModules: Boolean(parsed.showAllModules),
         subtasks: parsed.subtasks && typeof parsed.subtasks === 'object' && !Array.isArray(parsed.subtasks) ? parsed.subtasks : {},
         recurrence: parsed.recurrence && typeof parsed.recurrence === 'object' && !Array.isArray(parsed.recurrence) ? parsed.recurrence : {},
         reportArchive: Array.isArray(parsed.reportArchive) ? parsed.reportArchive.slice(0, 60).map(item => ({
@@ -152,7 +227,10 @@ export function useWorkbench() {
         })) : [],
         hiddenBlocks: Array.isArray(parsed.hiddenBlocks) ? parsed.hiddenBlocks.filter(x => typeof x === 'string') : [],
         confirmedMonthlyBills: parsed.confirmedMonthlyBills && typeof parsed.confirmedMonthlyBills === 'object' ? parsed.confirmedMonthlyBills : {},
-        skippedMonthlyBills: parsed.skippedMonthlyBills && typeof parsed.skippedMonthlyBills === 'object' ? parsed.skippedMonthlyBills : {}
+        skippedMonthlyBills: parsed.skippedMonthlyBills && typeof parsed.skippedMonthlyBills === 'object' ? parsed.skippedMonthlyBills : {},
+        linkMeta: sanitizeLinkMeta(parsed.linkMeta),
+        noteMeta: sanitizeNoteMeta(parsed.noteMeta),
+        projects: sanitizeProjects(parsed.projects)
       };
     } catch {
       return fallback;
@@ -164,12 +242,19 @@ export function useWorkbench() {
       localStore.setItem(EXT_STORAGE_KEY, JSON.stringify({
         monthlyBudget: extState.monthlyBudget,
         breakMinutes: extState.breakMinutes,
+        roleId: extState.roleId,
+        roleChosen: extState.roleChosen,
+        roleLinksSeeded: extState.roleLinksSeeded,
+        showAllModules: extState.showAllModules,
         subtasks: extState.subtasks,
         recurrence: extState.recurrence,
         reportArchive: extState.reportArchive.slice(0, 60),
         hiddenBlocks: extState.hiddenBlocks,
         confirmedMonthlyBills: extState.confirmedMonthlyBills,
-        skippedMonthlyBills: extState.skippedMonthlyBills
+        skippedMonthlyBills: extState.skippedMonthlyBills,
+        linkMeta: extState.linkMeta,
+        noteMeta: extState.noteMeta,
+        projects: extState.projects.slice(0, 80)
       }));
     } catch { /* ignore */ }
   }
@@ -202,6 +287,10 @@ export function useWorkbench() {
           ordered.push({ ...base, span });
           byId.delete(item.id);
         }
+      }
+      if (byId.has('role-hub')) {
+        ordered.unshift(byId.get('role-hub'));
+        byId.delete('role-hub');
       }
       for (const rest of byId.values()) ordered.push(rest);
       return ordered;
@@ -262,13 +351,119 @@ export function useWorkbench() {
     saveExtState();
   }
   function resetBlocksLayout() {
-    blocks.value = DEFAULT_BLOCKS.map(b => ({ ...b }));
-    extState.hiddenBlocks = [];
+    const resolved = resolveRoleBlocks(extState.roleId, DEFAULT_BLOCKS);
+    blocks.value = resolved.blocks;
+    extState.hiddenBlocks = resolved.hiddenBlocks;
     saveExtState();
-    try { localStore.removeItem(BLOCKS_LAYOUT_KEY); } catch { /* ignore */ }
+    persistBlocksLayout();
     const allTrue = Object.fromEntries(WIDGET_NAMES.map(name => [name, true]));
     updateAppearance({ widgets: allTrue });
-    showToast('已恢复默认看板布局');
+    showToast(`已恢复「${currentRole.value.name}」默认看板布局`);
+  }
+
+  // 多职业身份角色、模块映射与常用网站预设包
+  const currentRole = computed(() => getRoleProfile(extState.roleId));
+  const visibleNavPages = computed(() => {
+    if (extState.showAllModules) return PAGE_ORDER;
+    return currentRole.value.navPages;
+  });
+
+  function syncLinkMetaFromList(candidates) {
+    let changed = false;
+    for (const item of Array.isArray(candidates) ? candidates : []) {
+      const key = canonicalUrlKey(item?.url);
+      if (!key) continue;
+      const cur = extState.linkMeta[key];
+      if (!cur) {
+        extState.linkMeta = {
+          ...extState.linkMeta,
+          [key]: {
+            category: String(item.category || '通用效率').slice(0, 24),
+            desc: String(item.desc || '').slice(0, 120),
+            pinned: false,
+            visits: 0,
+            lastVisitedAt: 0
+          }
+        };
+        changed = true;
+      } else if ((!cur.category || cur.category === '通用效率') && item.category && !cur.desc && item.desc) {
+        extState.linkMeta = {
+          ...extState.linkMeta,
+          [key]: { ...cur, category: item.category, desc: item.desc }
+        };
+        changed = true;
+      }
+    }
+    if (changed) saveExtState();
+  }
+
+  function importWebsitePresets(candidates, { silent = false } = {}) {
+    syncLinkMetaFromList(candidates);
+    const list = planLinkImports(state.links || [], candidates);
+    if (!list.length) {
+      if (!silent) showToast('所选常用网站均已在列表中');
+      return 0;
+    }
+    let added = 0;
+    const baseNow = Date.now();
+    for (let i = 0; i < list.length; i++) {
+      if ((state.links || []).length >= COLLECTION_LIMITS.links) break;
+      try {
+        state.links = upsertLink(state.links || [], {
+          title: list[i].title,
+          url: list[i].url
+        }, baseNow + i);
+        added++;
+      } catch { /* skip invalid entry */ }
+    }
+    if (added > 0 && save()) {
+      if (!silent) showToast(`已导入 ${added} 个常用网站`);
+    } else if (!added && !silent) {
+      showToast('常用链接已达数量上限或无可导入网站');
+    }
+    return added;
+  }
+
+  function applyRoleFrame(roleId, { applyLayout = true, seedLinks = true, silent = false } = {}) {
+    const profile = getRoleProfile(roleId);
+    extState.roleId = profile.id;
+    extState.roleChosen = true;
+    extState.roleLinksSeeded = true;
+
+    if (applyLayout) {
+      const resolved = resolveRoleBlocks(profile.id, DEFAULT_BLOCKS);
+      blocks.value = resolved.blocks;
+      extState.hiddenBlocks = resolved.hiddenBlocks;
+      persistBlocksLayout();
+      const allTrue = Object.fromEntries(WIDGET_NAMES.map(name => [name, true]));
+      updateAppearance({ widgets: allTrue });
+    }
+    saveExtState();
+
+    let imported = 0;
+    if (seedLinks) {
+      imported = importWebsitePresets(getRolePresetLinks(profile.id), { silent: true });
+    }
+
+    if (!extState.showAllModules && !profile.navPages.includes(currentPage.value)) {
+      goto('home');
+    }
+
+    if (!silent) {
+      const suffix = imported > 0 ? `，并自动记录 ${imported} 个常用网站` : '';
+      showToast(`已切换至「${profile.name}」工作台视图${suffix}`);
+    }
+  }
+
+  function dismissRolePrompt() {
+    extState.roleChosen = true;
+    saveExtState();
+  }
+
+  function toggleShowAllModules() {
+    extState.showAllModules = !extState.showAllModules;
+    saveExtState();
+    showToast(extState.showAllModules ? '已展开全部侧栏功能模块' : `已按「${currentRole.value.name}」聚焦常用模块`);
   }
 
   // 跨页快捷预填状态与日报草稿持久化
@@ -473,8 +668,23 @@ export function useWorkbench() {
   // direction: moving down the rail slides the new page in from below, moving up slides it in
   // from above, which gives the rail a spatial memory. Firefox without support simply swaps
   // immediately — the same page, just without the transition.
-  const PAGE_ORDER = ['home', 'todo', 'study', 'standup', 'calendar', 'ledger', 'habits', 'sport', 'weather', 'me'];
+  const PAGE_ORDER = ['home', 'todo', 'projects', 'study', 'standup', 'calendar', 'bookmarks', 'notes', 'toolbox', 'ledger', 'habits', 'sport', 'weather', 'me'];
   const todoFilter = ref('today');
+  const toolboxTarget = ref({ group: '', tool: '', ts: 0 });
+  const focusEntity = ref({ kind: '', id: null, ts: 0 });
+  function openToolbox(group = '', tool = '') {
+    toolboxTarget.value = { group: String(group || ''), tool: String(tool || ''), ts: Date.now() };
+    goto('toolbox');
+  }
+  function openEntity(item) {
+    if (!item || !item.page) return;
+    focusEntity.value = {
+      kind: String(item.kind || ''),
+      id: item.entityId ?? null,
+      ts: Date.now()
+    };
+    goto(item.page);
+  }
 
   function commitPage(target) {
     currentPage.value = target;
@@ -1130,12 +1340,14 @@ export function useWorkbench() {
   const allLedgerCategories = computed(() => {
     const custom = Array.isArray(state.settings.ledgerCats) ? state.settings.ledgerCats : [];
     const seen = new Set(CATEGORIES);
+    const seenClean = new Set(CATEGORIES.map(c => c.replace(/^[^\s]+\s*/, '').trim()));
     const extras = [];
     for (const c of custom) {
-      const formatted = c.startsWith('🏷 ') ? c : `🏷 ${c}`;
-      if (!seen.has(formatted) && !seen.has(c)) {
-        seen.add(formatted);
-        extras.push(formatted);
+      const clean = String(c || '').replace(/^🏷\s*/, '').trim();
+      if (clean && !seen.has(clean) && !seenClean.has(clean)) {
+        seen.add(clean);
+        seenClean.add(clean);
+        extras.push(clean);
       }
     }
     return [...CATEGORIES, ...extras];
@@ -1152,21 +1364,25 @@ export function useWorkbench() {
       showToast('自定义分类已达上限');
       return null;
     }
-    if (current.includes(clean) || CATEGORIES.some(c => c.slice(2).trim() === clean || c === clean)) {
+    if (
+      current.some(c => String(c).replace(/^🏷\s*/, '').trim() === clean) ||
+      CATEGORIES.some(c => c.replace(/^[^\s]+\s*/, '').trim() === clean || c === clean)
+    ) {
       showToast('该分类已存在');
       return null;
     }
     state.settings.ledgerCats = [...current, clean];
     if (!save()) return null;
     showToast(`已添加分类「${clean}」`);
-    return `🏷 ${clean}`;
+    return clean;
   }
 
   function removeLedgerCategory(catLabel) {
     const raw = String(catLabel || '').replace(/^🏷\s*/, '').trim();
     const current = Array.isArray(state.settings.ledgerCats) ? state.settings.ledgerCats : [];
-    if (!current.includes(raw)) return false;
-    state.settings.ledgerCats = current.filter(c => c !== raw);
+    const exists = current.some(c => c === raw || String(c).replace(/^🏷\s*/, '').trim() === raw);
+    if (!exists) return false;
+    state.settings.ledgerCats = current.filter(c => c !== raw && String(c).replace(/^🏷\s*/, '').trim() !== raw);
     if (!save()) return false;
     showToast(`已移除自定义分类「${raw}」`);
     return true;
@@ -1193,7 +1409,7 @@ export function useWorkbench() {
       type: type === 'income' ? 'income' : 'expense',
       amount: amt,
       note: cleanNote,
-      cat: cat || CATEGORIES[0],
+      cat: normalizeLedgerCategory(cat || CATEGORIES[0]),
       date: when
     });
     if (!save()) return false;
@@ -1218,7 +1434,7 @@ export function useWorkbench() {
       type: (type ?? item.type) === 'income' ? 'income' : 'expense',
       amount: amt,
       note: cleanNote,
-      cat: (cat ?? item.cat) || CATEGORIES[0],
+      cat: normalizeLedgerCategory((cat ?? item.cat) || CATEGORIES[0]),
       date: when
     });
     if (!save()) return false;
@@ -1302,7 +1518,7 @@ export function useWorkbench() {
     }
     state.settings.ledgerTemplates.unshift({
       id: nextId(), name: clean, type: type === 'income' ? 'income' : 'expense', amount: amt,
-      cat: cat || CATEGORIES[0], note: String(note || '').trim() || clean,
+      cat: normalizeLedgerCategory(cat || CATEGORIES[0]), note: String(note || '').trim() || clean,
       frequency: ['daily', 'weekday', 'monthly', 'manual'].includes(frequency) ? frequency : 'manual',
       dayOfMonth: Math.min(31, Math.max(1, Number(dayOfMonth) || 1)), enabled: Boolean(enabled),
       lastPosted: '', reminderDays: Math.min(30, Math.max(0, Number(reminderDays) || 0))
@@ -1323,7 +1539,7 @@ export function useWorkbench() {
     }
     Object.assign(item, {
       name: clean, type: type === 'income' ? 'income' : 'expense', amount: amt,
-      cat: cat || CATEGORIES[0], note: String(note || '').trim() || clean,
+      cat: normalizeLedgerCategory(cat || CATEGORIES[0]), note: String(note || '').trim() || clean,
       frequency: ['daily', 'weekday', 'monthly', 'manual'].includes(frequency) ? frequency : 'manual',
       dayOfMonth: Math.min(31, Math.max(1, Number(dayOfMonth) || 1)), enabled: Boolean(enabled),
       reminderDays: Math.min(30, Math.max(0, Number(reminderDays) || 0))
@@ -1403,10 +1619,10 @@ export function useWorkbench() {
 
   // 每月固定支出与订阅预设
   const SUBSCRIPTION_PRESETS = [
-    { name: '房租与物业', amount: 2800, type: 'expense', cat: '🏠 居家', frequency: 'monthly', dayOfMonth: 1, reminderDays: 3, note: '每月固定房租与物业费' },
+    { name: '房租与物业', amount: 2800, type: 'expense', cat: '🏠 居住', frequency: 'monthly', dayOfMonth: 1, reminderDays: 3, note: '每月固定房租与物业费' },
     { name: '云服务订阅', amount: 68, type: 'expense', cat: '📚 学习', frequency: 'monthly', dayOfMonth: 5, reminderDays: 3, note: '云服务器与开发者工具订阅' },
     { name: '办公软件会员', amount: 35, type: 'expense', cat: '📚 学习', frequency: 'monthly', dayOfMonth: 10, reminderDays: 3, note: '效率与协作软件月度订阅' },
-    { name: '宽带与通讯套餐', amount: 99, type: 'expense', cat: '🏠 居家', frequency: 'monthly', dayOfMonth: 1, reminderDays: 3, note: '宽带及手机通讯月租' }
+    { name: '宽带与通讯套餐', amount: 99, type: 'expense', cat: '🏠 居住', frequency: 'monthly', dayOfMonth: 1, reminderDays: 3, note: '宽带及手机通讯月租' }
   ];
 
   // 月初/当月待确认固定账单（每月订阅模板在当月尚未确认入账且未跳过时生成待确认卡片）
@@ -1725,14 +1941,46 @@ export function useWorkbench() {
     return true;
   }
 
-  // 便签与链接操作（Workspace）
-  function saveNoteRecord({ id, title, body }) {
+  // 便签与知识笔记库操作（Workspace + noteMeta）
+  function getNoteMeta(id) {
+    const found = extState.noteMeta?.[String(id)];
+    return {
+      folder: found?.folder || '工作复盘',
+      pinned: Boolean(found?.pinned)
+    };
+  }
+  function updateNoteMeta(id, patch = {}) {
+    const key = String(id || '');
+    if (!key) return;
+    const prev = getNoteMeta(key);
+    extState.noteMeta = {
+      ...extState.noteMeta,
+      [key]: {
+        folder: patch.folder !== undefined ? String(patch.folder || '工作复盘').slice(0, 24) : prev.folder,
+        pinned: patch.pinned !== undefined ? Boolean(patch.pinned) : prev.pinned
+      }
+    };
+    saveExtState();
+  }
+  function toggleNotePin(id) {
+    const prev = getNoteMeta(id);
+    updateNoteMeta(id, { pinned: !prev.pinned });
+  }
+
+  function saveNoteRecord({ id, title, body, folder, pinned }) {
     try {
       const record = { title: String(title || '').trim(), body: String(body || '') };
       if (id) record.id = Number(id);
-      state.notes = upsertNote(state.notes || [], record, Date.now());
+      const next = upsertNote(state.notes || [], record, Date.now());
+      state.notes = next;
       if (!save()) return false;
-      return true;
+      const saved = id
+        ? next.find(n => n.id === Number(id))
+        : next[0];
+      if (saved && (folder !== undefined || pinned !== undefined)) {
+        updateNoteMeta(saved.id, { folder, pinned });
+      }
+      return saved ? saved.id : true;
     } catch (err) {
       showToast(err.message || '便签内容无效');
       return false;
@@ -1743,20 +1991,74 @@ export function useWorkbench() {
     const before = [...(state.notes || [])];
     const target = before.find(n => n.id === id);
     if (!target) return;
+    const prevMeta = extState.noteMeta?.[String(id)] ? { ...extState.noteMeta[String(id)] } : null;
     state.notes = deleteNote(before, id);
     if (!save()) return;
-    showUndo(`已删除便签「${target.title}」`, () => {
+    if (prevMeta) {
+      const nextMeta = { ...extState.noteMeta };
+      delete nextMeta[String(id)];
+      extState.noteMeta = nextMeta;
+      saveExtState();
+    }
+    showUndo(`已删除笔记「${target.title}」`, () => {
       state.notes = before;
       save();
+      if (prevMeta) {
+        extState.noteMeta = { ...extState.noteMeta, [String(id)]: prevMeta };
+        saveExtState();
+      }
     });
   }
 
-  function saveLinkRecord({ id, title, url }) {
+  // 网址导航与常用链接操作（Workspace + linkMeta）
+  function getLinkMeta(url) {
+    const key = canonicalUrlKey(url);
+    const saved = extState.linkMeta?.[key];
+    if (saved) return saved;
+    const matched = WEBSITE_CATALOG.find(item => canonicalUrlKey(item.url) === key);
+    return {
+      category: matched?.category || '通用效率',
+      desc: matched?.desc || '',
+      pinned: false,
+      visits: 0,
+      lastVisitedAt: 0
+    };
+  }
+  function updateLinkMeta(url, patch = {}) {
+    const key = canonicalUrlKey(url);
+    if (!key) return;
+    const prev = getLinkMeta(url);
+    extState.linkMeta = {
+      ...extState.linkMeta,
+      [key]: {
+        category: patch.category !== undefined ? String(patch.category || '通用效率').slice(0, 24) : prev.category,
+        desc: patch.desc !== undefined ? String(patch.desc || '').slice(0, 120) : prev.desc,
+        pinned: patch.pinned !== undefined ? Boolean(patch.pinned) : prev.pinned,
+        visits: patch.visits !== undefined ? Math.max(0, Number(patch.visits) || 0) : prev.visits,
+        lastVisitedAt: patch.lastVisitedAt !== undefined ? Math.max(0, Number(patch.lastVisitedAt) || 0) : prev.lastVisitedAt
+      }
+    };
+    saveExtState();
+  }
+  function toggleLinkPin(url) {
+    const cur = getLinkMeta(url);
+    updateLinkMeta(url, { pinned: !cur.pinned });
+  }
+  function recordLinkVisit(url) {
+    const cur = getLinkMeta(url);
+    updateLinkMeta(url, { visits: (cur.visits || 0) + 1, lastVisitedAt: Date.now() });
+  }
+
+  function saveLinkRecord({ id, title, url, category, desc, pinned }) {
     try {
-      const record = { title: String(title || '').trim(), url: String(url || '').trim() };
+      const cleanUrl = String(url || '').trim();
+      const record = { title: String(title || '').trim(), url: cleanUrl };
       if (id) record.id = Number(id);
       state.links = upsertLink(state.links || [], record, Date.now());
       if (!save()) return false;
+      if (category !== undefined || desc !== undefined || pinned !== undefined) {
+        updateLinkMeta(cleanUrl, { category, desc, pinned });
+      }
       return true;
     } catch (err) {
       showToast(err.message || '请输入有效的名称和 https:// 网址');
@@ -1783,6 +2085,268 @@ export function useWorkbench() {
     } catch (err) {
       showToast(err.message || '排序失败');
     }
+  }
+
+  // 项目进度 / 客户合同与回款 / 课程与备考看板（Projects）
+  const projectsList = computed(() => extState.projects || []);
+  function addProject(payload = {}) {
+    const name = String(payload.name || '').trim();
+    if (!name) {
+      showToast('请填写项目 / 客户 / 课程名称');
+      return false;
+    }
+    const milestones = Array.isArray(payload.milestones)
+      ? payload.milestones
+        .map(m => (typeof m === 'string' ? { text: m, done: false } : m))
+        .filter(m => m && String(m.text || '').trim())
+        .map((m, idx) => ({
+          id: `ms-${Date.now()}-${idx}`,
+          text: String(m.text).trim().slice(0, 120),
+          done: Boolean(m.done)
+        }))
+      : [];
+    const entry = {
+      id: `proj-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      mode: ['milestone', 'client', 'course'].includes(payload.mode) ? payload.mode : (currentRole.value.defaultProjectMode || 'milestone'),
+      name: name.slice(0, 80),
+      meta: String(payload.meta || '').trim().slice(0, 100),
+      target: String(payload.target || '').trim().slice(0, 140),
+      status: ['active', 'done', 'paused'].includes(payload.status) ? payload.status : 'active',
+      amount: Math.max(0, Number(payload.amount) || 0),
+      paidRecorded: Boolean(payload.paidRecorded),
+      paidAt: Number(payload.paidAt) || 0,
+      deadline: /^\d{4}-\d{2}-\d{2}$/.test(String(payload.deadline || '')) ? String(payload.deadline) : '',
+      milestones,
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    };
+    extState.projects = [entry, ...(extState.projects || [])].slice(0, 80);
+    saveExtState();
+    showToast(`已创建「${entry.name}」`);
+    return entry;
+  }
+  function updateProject(projectId, patch = {}) {
+    const list = [...(extState.projects || [])];
+    const idx = list.findIndex(p => p.id === projectId);
+    if (idx < 0) return false;
+    const prev = list[idx];
+    const nextName = patch.name !== undefined ? String(patch.name).trim().slice(0, 80) : prev.name;
+    if (!nextName) {
+      showToast('名称不能为空');
+      return false;
+    }
+    list[idx] = {
+      ...prev,
+      mode: ['milestone', 'client', 'course'].includes(patch.mode) ? patch.mode : prev.mode,
+      name: nextName,
+      meta: patch.meta !== undefined ? String(patch.meta).trim().slice(0, 100) : prev.meta,
+      target: patch.target !== undefined ? String(patch.target).trim().slice(0, 140) : prev.target,
+      status: ['active', 'done', 'paused'].includes(patch.status) ? patch.status : prev.status,
+      amount: patch.amount !== undefined ? Math.max(0, Number(patch.amount) || 0) : prev.amount,
+      paidRecorded: patch.paidRecorded !== undefined ? Boolean(patch.paidRecorded) : Boolean(prev.paidRecorded),
+      paidAt: patch.paidAt !== undefined ? (Number(patch.paidAt) || 0) : (Number(prev.paidAt) || 0),
+      deadline: patch.deadline !== undefined ? (/^\d{4}-\d{2}-\d{2}$/.test(String(patch.deadline)) ? String(patch.deadline) : '') : prev.deadline,
+      updatedAt: Date.now()
+    };
+    extState.projects = list;
+    saveExtState();
+    return true;
+  }
+  function deleteProject(projectId) {
+    const before = [...(extState.projects || [])];
+    const target = before.find(p => p.id === projectId);
+    if (!target) return false;
+    extState.projects = before.filter(p => p.id !== projectId);
+    saveExtState();
+    showUndo(`已删除「${target.name}」`, () => {
+      extState.projects = before;
+      saveExtState();
+    });
+    return true;
+  }
+  function addProjectMilestone(projectId, text) {
+    const clean = String(text || '').trim().slice(0, 120);
+    if (!clean) {
+      showToast('请输入节点名称');
+      return false;
+    }
+    extState.projects = (extState.projects || []).map(p => {
+      if (p.id !== projectId) return p;
+      const ms = [...(p.milestones || []), { id: `ms-${Date.now()}`, text: clean, done: false }];
+      return { ...p, milestones: ms, updatedAt: Date.now() };
+    });
+    saveExtState();
+    return true;
+  }
+  function toggleProjectMilestone(projectId, milestoneId) {
+    extState.projects = (extState.projects || []).map(p => {
+      if (p.id !== projectId) return p;
+      const ms = (p.milestones || []).map(m => m.id === milestoneId ? { ...m, done: !m.done } : m);
+      const allDone = ms.length > 0 && ms.every(m => m.done);
+      return {
+        ...p,
+        milestones: ms,
+        status: allDone ? 'done' : p.status === 'done' ? 'active' : p.status,
+        updatedAt: Date.now()
+      };
+    });
+    saveExtState();
+  }
+  function deleteProjectMilestone(projectId, milestoneId) {
+    extState.projects = (extState.projects || []).map(p => {
+      if (p.id !== projectId) return p;
+      return {
+        ...p,
+        milestones: (p.milestones || []).filter(m => m.id !== milestoneId),
+        updatedAt: Date.now()
+      };
+    });
+    saveExtState();
+  }
+  function editProjectMilestone(projectId, milestoneId, text) {
+    const clean = String(text || '').trim().slice(0, 120);
+    if (!clean) {
+      showToast('节点名称不能为空');
+      return false;
+    }
+    extState.projects = (extState.projects || []).map(p => {
+      if (p.id !== projectId) return p;
+      return {
+        ...p,
+        milestones: (p.milestones || []).map(m => m.id === milestoneId ? { ...m, text: clean } : m),
+        updatedAt: Date.now()
+      };
+    });
+    saveExtState();
+    showToast('节点已更新');
+    return true;
+  }
+  function pushMilestoneToTodo(project, milestone) {
+    if (!project || !milestone) return false;
+    const targetText = `[${project.name}] ${milestone.text}`;
+    const exists = (state.todos || []).some(t => !t.done && t.text === targetText);
+    if (exists) {
+      showToast(`「${milestone.text}」已在未完成待办中`);
+      return false;
+    }
+    const task = addTodo(targetText, {
+      bucket: 'today',
+      date: project.deadline || todayStr.value,
+      priority: 'high',
+      tag: project.mode === 'course' ? '学习课程' : project.mode === 'client' ? '客户交付' : '项目里程碑'
+    });
+    if (task) showToast(`已推送「${milestone.text}」至今日待办`);
+    return Boolean(task);
+  }
+  function recordProjectPaymentToLedger(project, amount, noteLabel = '') {
+    if (project?.paidRecorded) {
+      showToast('该项目款项已全额入账，如需调整请前往账本编辑');
+      return false;
+    }
+    const val = Number(amount || project?.amount || 0);
+    if (!Number.isFinite(val) || val <= 0) {
+      showToast('请输入有效的入账金额');
+      return false;
+    }
+    const ok = addLedgerRecord({
+      type: 'income',
+      amount: val,
+      cat: '💼 收入',
+      note: `${project?.name || '客户项目'}${noteLabel ? ` · ${noteLabel}` : ' 回款'}`
+    });
+    if (ok) {
+      if (project?.id) {
+        updateProject(project.id, { paidRecorded: true, paidAt: Date.now() });
+      }
+      showToast(`已记入账本收入 ¥${val.toFixed(2)}`);
+    }
+    return ok;
+  }
+  function seedRoleSampleProjects(roleId = currentRole.value.id) {
+    const presets = {
+      developer: [
+        {
+          mode: 'milestone',
+          name: '工作台 v2.4 核心重构',
+          meta: '前端工程 · Vue 3 + Vite',
+          target: '完成导航扩容与单元测试全量绿灯',
+          deadline: todayStr.value,
+          milestones: [
+            { text: '梳理本地存储 Schema 兼容校验', done: true },
+            { text: '完成响应式看板与快捷键接入', done: false },
+            { text: '补充核心模块单测并执行静态构建', done: false }
+          ]
+        }
+      ],
+      creator: [
+        {
+          mode: 'milestone',
+          name: '新品落地页视觉升级',
+          meta: 'UI/UX 设计 · Figma 交付',
+          target: '输出暗色适配规范与高对比组件库',
+          deadline: todayStr.value,
+          milestones: [
+            { text: '检查主按钮 WCAG AA 对比度', done: true },
+            { text: '导出字体与间距比例尺 Token', done: false },
+            { text: '设计评审走查与动效标注', done: false }
+          ]
+        }
+      ],
+      student: [
+        {
+          mode: 'course',
+          name: '数据结构与算法专项复盘',
+          meta: '专业核心课 · 4 学分',
+          target: '完成图论与动态规划专题刷题与错题卡片',
+          deadline: todayStr.value,
+          milestones: [
+            { text: '整理树与图遍历模板笔记', done: true },
+            { text: '完成 15 道经典动态规划题解', done: false },
+            { text: '全真限时模考与耗时分析', done: false }
+          ]
+        }
+      ],
+      freelance: [
+        {
+          mode: 'client',
+          name: '品牌官网改版与前端交付',
+          meta: '客户 A · 首付 40% / 验收 60%',
+          target: '本周五前完成响应式页面联调与尾款请款',
+          amount: 12000,
+          deadline: todayStr.value,
+          milestones: [
+            { text: '签约确认需求并收到 40% 首付款', done: true },
+            { text: '完成核心交互页面部署预览', done: false },
+            { text: '提交最终交付包并开具发票请尾款', done: false }
+          ]
+        }
+      ],
+      general: [
+        {
+          mode: 'milestone',
+          name: '个人月度效能提升计划',
+          meta: '日常目标 · 每周复盘',
+          target: '建立稳定的任务整理与知识沉淀节奏',
+          deadline: todayStr.value,
+          milestones: [
+            { text: '整理本周高优待办与常用网址书签', done: true },
+            { text: '沉淀 2 篇工作复盘 Markdown 笔记', done: false },
+            { text: '核对本月预算水位与固定账单', done: false }
+          ]
+        }
+      ]
+    };
+    const list = presets[roleId] || presets.general;
+    const existingNames = new Set((extState.projects || []).map(p => p.name));
+    let count = 0;
+    for (const tpl of list) {
+      if (!existingNames.has(tpl.name)) {
+        addProject(tpl);
+        count++;
+      }
+    }
+    if (!count) showToast('示例项目已在看板中');
+    return count;
   }
 
   // 提醒与到期扫描
@@ -2022,19 +2586,108 @@ export function useWorkbench() {
         showToast(`已累计专注学习 +${p.minutes} 分钟`);
         return true;
       }
+      case 'note': {
+        const title = String(p.title || '').trim();
+        if (!title) {
+          showToast('便签标题不能为空');
+          return false;
+        }
+        const savedId = saveNoteRecord({ title, body: String(p.body || '').trim() });
+        if (savedId) showToast(`已记录便签「${title}」`);
+        return Boolean(savedId);
+      }
       default:
         return false;
     }
   }
 
-  // 备份导入与导出
+  // 备份导入与导出（完整工作台 Bundle + 向下兼容旧版纯 state 备份；绝不包含 AI 密钥）
+  function sanitizeExtState(raw) {
+    const fallback = cleanExtState();
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return fallback;
+    const budget = Number(raw.monthlyBudget);
+    const bMins = Number(raw.breakMinutes);
+    return {
+      monthlyBudget: Number.isFinite(budget) && budget >= 100 && budget <= 10_000_000 ? budget : 3000,
+      breakMinutes: Number.isInteger(bMins) && bMins >= 1 && bMins <= 120 ? bMins : 5,
+      roleId: isValidRoleId(raw.roleId) ? raw.roleId : 'general',
+      roleChosen: Boolean(raw.roleChosen),
+      roleLinksSeeded: Boolean(raw.roleLinksSeeded),
+      showAllModules: Boolean(raw.showAllModules),
+      subtasks: raw.subtasks && typeof raw.subtasks === 'object' && !Array.isArray(raw.subtasks) ? raw.subtasks : {},
+      recurrence: raw.recurrence && typeof raw.recurrence === 'object' && !Array.isArray(raw.recurrence) ? raw.recurrence : {},
+      reportArchive: Array.isArray(raw.reportArchive) ? raw.reportArchive.slice(0, 60).map(item => ({
+        ...item,
+        doneCount: Number(item?.doneCount ?? item?.stats?.done) || 0,
+        doingCount: Number(item?.doingCount ?? item?.stats?.doing) || 0,
+        focusMinutes: Number(item?.focusMinutes ?? item?.stats?.focus) || 0,
+        stats: {
+          done: Number(item?.stats?.done ?? item?.doneCount) || 0,
+          doing: Number(item?.stats?.doing ?? item?.doingCount) || 0,
+          focus: Number(item?.stats?.focus ?? item?.focusMinutes) || 0
+        }
+      })) : [],
+      hiddenBlocks: Array.isArray(raw.hiddenBlocks) ? raw.hiddenBlocks.filter(x => typeof x === 'string') : [],
+      confirmedMonthlyBills: raw.confirmedMonthlyBills && typeof raw.confirmedMonthlyBills === 'object' && !Array.isArray(raw.confirmedMonthlyBills) ? raw.confirmedMonthlyBills : {},
+      skippedMonthlyBills: raw.skippedMonthlyBills && typeof raw.skippedMonthlyBills === 'object' && !Array.isArray(raw.skippedMonthlyBills) ? raw.skippedMonthlyBills : {},
+      linkMeta: sanitizeLinkMeta(raw.linkMeta),
+      noteMeta: sanitizeNoteMeta(raw.noteMeta),
+      projects: sanitizeProjects(raw.projects)
+    };
+  }
+
+  function sanitizeBlocksLayout(raw) {
+    const defaults = DEFAULT_BLOCKS.map(b => ({ ...b }));
+    if (!Array.isArray(raw)) return defaults;
+    const byId = new Map(defaults.map(b => [b.id, b]));
+    const ordered = [];
+    for (const item of raw) {
+      if (item && byId.has(item.id)) {
+        const base = byId.get(item.id);
+        const span = [4, 6, 8, 12].includes(Number(item.span)) ? Number(item.span) : base.span;
+        ordered.push({ ...base, span });
+        byId.delete(item.id);
+      }
+    }
+    if (byId.has('role-hub')) {
+      ordered.unshift(byId.get('role-hub'));
+      byId.delete('role-hub');
+    }
+    for (const rest of byId.values()) ordered.push(rest);
+    return ordered;
+  }
+
   function exportBackupData() {
     try {
-      // Validate the compact form first: pretty-printing adds ~15% and can push a record that
-      // still saves correctly over the strict 2 MB import limit.
-      const compact = JSON.stringify(state);
-      parseBackup(compact);
-      const pretty = JSON.stringify(state, null, 2);
+      const stateSnapshot = JSON.parse(JSON.stringify(state));
+      parseBackup(JSON.stringify(stateSnapshot));
+      const bundle = {
+        format: 'lime-workbench-bundle',
+        bundleVersion: 1,
+        exportedAt: Date.now(),
+        state: stateSnapshot,
+        extState: {
+          monthlyBudget: extState.monthlyBudget,
+          breakMinutes: extState.breakMinutes,
+          roleId: extState.roleId,
+          roleChosen: extState.roleChosen,
+          roleLinksSeeded: extState.roleLinksSeeded,
+          showAllModules: extState.showAllModules,
+          subtasks: extState.subtasks,
+          recurrence: extState.recurrence,
+          reportArchive: extState.reportArchive.slice(0, 60),
+          hiddenBlocks: extState.hiddenBlocks,
+          confirmedMonthlyBills: extState.confirmedMonthlyBills,
+          skippedMonthlyBills: extState.skippedMonthlyBills,
+          linkMeta: extState.linkMeta,
+          noteMeta: extState.noteMeta,
+          projects: extState.projects.slice(0, 80)
+        },
+        blocks: blocks.value.map(b => ({ id: b.id, span: b.span })),
+        appearance: JSON.parse(JSON.stringify(appearance))
+      };
+      const compact = JSON.stringify(bundle);
+      const pretty = JSON.stringify(bundle, null, 2);
       const json = pretty.length <= MAX_BACKUP_CHARS ? pretty : compact;
       const url = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
       const a = document.createElement('a');
@@ -2042,7 +2695,7 @@ export function useWorkbench() {
       a.download = `lime-workbench-${todayKey()}.json`;
       a.click();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
-      showToast('工作台数据备份已导出');
+      showToast('完整工作台备份已导出（不含 AI 密钥）');
     } catch {
       showToast('导出失败：请检查当前数据');
     }
@@ -2055,7 +2708,31 @@ export function useWorkbench() {
       return false;
     }
     try {
-      const imported = parseBackup(await file.text());
+      const rawText = await file.text();
+      let parsed;
+      try { parsed = JSON.parse(rawText); } catch { parsed = null; }
+
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed) && parsed.format === 'lime-workbench-bundle') {
+        const importedState = parseBackup(JSON.stringify(parsed.state));
+        store.writeReplacement(importedState);
+        Object.assign(state, importedState);
+
+        if (parsed.extState) {
+          Object.assign(extState, sanitizeExtState(parsed.extState));
+          saveExtState();
+        }
+        if (parsed.blocks) {
+          blocks.value = sanitizeBlocksLayout(parsed.blocks);
+          persistBlocksLayout();
+        }
+        if (parsed.appearance && validateAppearance(parsed.appearance)) {
+          updateAppearance(parsed.appearance);
+        }
+        showToast('完整工作台备份已成功导入');
+        return true;
+      }
+
+      const imported = parseBackup(rawText);
       store.writeReplacement(imported);
       Object.assign(state, imported);
       showToast('备份已成功导入');
@@ -2178,6 +2855,15 @@ export function useWorkbench() {
   if (typeof window !== 'undefined') {
     autoPostLedgerTemplates();
     watch(todayStr, () => autoPostLedgerTemplates());
+    if (!extState.roleLinksSeeded) {
+      extState.roleLinksSeeded = true;
+      saveExtState();
+      if ((state.links || []).length === 0) {
+        importWebsitePresets(getRolePresetLinks(extState.roleId), { silent: true });
+      } else {
+        syncLinkMetaFromList(WEBSITE_CATALOG);
+      }
+    }
   }
 
   singleton = {
@@ -2189,6 +2875,10 @@ export function useWorkbench() {
     nowDate,
     currentPage,
     todoFilter,
+    toolboxTarget,
+    openToolbox,
+    focusEntity,
+    openEntity,
     railCollapsed,
     mobileDrawerOpen,
     breakOpen,
@@ -2203,6 +2893,14 @@ export function useWorkbench() {
     isBlockVisible,
     toggleBlockVisible,
     resetBlocksLayout,
+    ROLE_IDS,
+    ROLE_PROFILES,
+    currentRole,
+    visibleNavPages,
+    applyRoleFrame,
+    dismissRolePrompt,
+    toggleShowAllModules,
+    importWebsitePresets,
     prefillState,
     consumePrefill,
     standupDraft,
@@ -2314,11 +3012,29 @@ export function useWorkbench() {
     setFocusDuration,
     linkTaskToFocus,
     setFocusIntentText,
+    getNoteMeta,
+    updateNoteMeta,
+    toggleNotePin,
     saveNoteRecord,
     removeNoteRecord,
+    getLinkMeta,
+    updateLinkMeta,
+    toggleLinkPin,
+    recordLinkVisit,
     saveLinkRecord,
     removeLinkRecord,
     moveLinkRecord,
+    projectsList,
+    addProject,
+    updateProject,
+    deleteProject,
+    addProjectMilestone,
+    editProjectMilestone,
+    toggleProjectMilestone,
+    deleteProjectMilestone,
+    pushMilestoneToTodo,
+    recordProjectPaymentToLedger,
+    seedRoleSampleProjects,
     handleAlert,
     addIntervalReminder,
     addCountdownTimer,

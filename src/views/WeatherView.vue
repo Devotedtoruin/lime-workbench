@@ -8,10 +8,15 @@ const wb = useWorkbench();
 const weather = useWeather();
 
 const cityInput = ref('');
+const cityError = ref('');
 
 function searchCity() {
   const name = cityInput.value.trim();
-  if (!name) return;
+  if (!name) {
+    cityError.value = '请输入要查询的城市名称';
+    return;
+  }
+  cityError.value = '';
   weather.searchCity(name);
   cityInput.value = '';
 }
@@ -22,7 +27,7 @@ function searchCity() {
     <header class="page-head">
       <div>
         <h1>天气与通勤</h1>
-        <p class="sub">只在需要时读取位置；也可以手动选择城市。</p>
+        <p class="sub">按当前位置或城市名称查询天气。</p>
       </div>
       <span class="privacy"><img :src="asset('assets/icons/map-pin.svg')" alt="" />位置只用于天气查询</span>
     </header>
@@ -38,7 +43,7 @@ function searchCity() {
         <div class="weather-copy">
           <span class="weather-city">{{ weather.weatherData.place }}</span>
           <strong v-if="!weather.busy.value" class="weather-temp numeric">{{ weather.weatherData.summary }} {{ weather.weatherData.temp }}</strong>
-          <span v-else class="skeleton" style="width: 150px; height: 26px"></span>
+          <span v-else class="skeleton weather-skeleton"></span>
           <small>{{ weather.weatherData.detail }}</small>
           <small class="updated">{{ weather.weatherData.updatedAt }}</small>
         </div>
@@ -47,11 +52,12 @@ function searchCity() {
         <button class="btn btn-soft" type="button" :disabled="weather.busy.value" @click="weather.locate()">
           <img :src="asset('assets/icons/locate.svg')" alt="" />使用当前位置
         </button>
-        <form class="city-search" @submit.prevent="searchCity">
-          <input v-model="cityInput" class="input" maxlength="100" placeholder="搜索城市，如 杭州" aria-label="搜索城市" />
+        <form class="city-search" novalidate @submit.prevent="searchCity">
+          <input v-model="cityInput" class="input" :class="{ 'is-invalid': cityError }" maxlength="100" placeholder="搜索城市，如 杭州" aria-label="搜索城市" @input="cityError = ''" />
           <button class="btn btn-primary" type="submit" :disabled="weather.busy.value">查询</button>
         </form>
       </div>
+      <p v-if="cityError" class="field-error city-error">{{ cityError }}</p>
       <p class="tiny">同名城市（例如「白山市」中国和日本各有一个）需要加上省份或国家，如「吉林省 白山市」。</p>
     </section>
 
@@ -110,6 +116,8 @@ function searchCity() {
 .weather-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .city-search { display: flex; align-items: center; gap: 8px; flex: 1 1 260px; max-width: 420px; }
 .city-search .input { flex: 1; min-width: 0; }
+.weather-skeleton { width: 150px; height: 26px; }
+.city-error { margin-top: -10px; }
 .tiny { font-size: var(--text-sm); color: var(--muted); line-height: 1.6; }
 
 .weather-lower { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--shell-gap); align-items: start; }

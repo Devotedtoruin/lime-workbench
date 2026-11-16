@@ -2,7 +2,7 @@
 import { computed, ref } from 'vue';
 import { asset } from '../lib/assets.js';
 import { useWorkbench } from '../composables/useWorkbench.js';
-import { categoryIcon } from '../../js/command.js';
+import { categoryIcon, displayCategoryName, normalizeLedgerCategory } from '../../js/command.js';
 
 const props = defineProps({
   compact: { type: Boolean, default: false }
@@ -13,13 +13,21 @@ const wb = useWorkbench();
 /* ---------------- 月度预算水位线编辑 ---------------- */
 const editingBudget = ref(false);
 const budgetDraft = ref('');
+const budgetError = ref('');
 
 function openBudgetEditor() {
   budgetDraft.value = String(wb.monthlyBudget.value);
+  budgetError.value = '';
   editingBudget.value = true;
 }
 
 function saveBudget() {
+  const val = Math.round(Number(budgetDraft.value) || 0);
+  if (!Number.isFinite(val) || val < 100 || val > 10_000_000) {
+    budgetError.value = '月度预算需在 100 – 10,000,000 元之间';
+    return;
+  }
+  budgetError.value = '';
   if (wb.setMonthlyBudget(budgetDraft.value)) {
     editingBudget.value = false;
   }
@@ -35,8 +43,7 @@ const currency = new Intl.NumberFormat('zh-CN', {
 function money(n) { return currency.format(Number(n) || 0); }
 
 function catName(c) {
-  const s = String(c || '');
-  return (/^[^\w\u4e00-\u9fa5]/.test(s) ? s.replace(/^[^\s]+\s*/, '').trim() : s.trim()) || '未分类';
+  return displayCategoryName(c);
 }
 
 const trendDays = computed(() => {
@@ -208,7 +215,7 @@ const categorySlices = computed(() => {
   for (const r of source) {
     const amt = Number(r.amount) || 0;
     if (amt <= 0) continue;
-    const cat = r.cat || '🎁 其他';
+    const cat = normalizeLedgerCategory(r.cat || '其他');
     totals.set(cat, (totals.get(cat) || 0) + amt);
     grandTotal += amt;
   }
@@ -261,7 +268,7 @@ const focusedSlice = computed(() => {
           <span class="budget-msg">{{ wb.budgetStatus.value.message }}</span>
         </div>
         <div class="budget-actions">
-          <form v-if="editingBudget" class="budget-edit-form" @submit.prevent="saveBudget">
+          <form v-if="editingBudget" class="budget-edit-form" novalidate @submit.prevent="saveBudget">
             <span class="budget-prefix">¥</span>
             <input
               v-model="budgetDraft"
@@ -270,11 +277,12 @@ const focusedSlice = computed(() => {
               max="10000000"
               step="100"
               class="input budget-input numeric"
+              :class="{ 'is-invalid': budgetError }"
               aria-label="月度预算金额"
-              required
+              @input="budgetError = ''"
             />
             <button class="btn btn-primary btn-sm" type="submit">保存</button>
-            <button class="btn btn-ghost btn-sm" type="button" @click="editingBudget = false">取消</button>
+            <button class="btn btn-ghost btn-sm" type="button" @click="editingBudget = false; budgetError = ''">取消</button>
           </form>
           <template v-else>
             <span class="budget-ratio numeric">
@@ -286,6 +294,7 @@ const focusedSlice = computed(() => {
           </template>
         </div>
       </div>
+      <p v-if="editingBudget && budgetError" class="field-error" role="alert">{{ budgetError }}</p>
       <div class="budget-track" role="progressbar" :aria-valuenow="wb.budgetStatus.value.percent" aria-valuemin="0" aria-valuemax="100">
         <i class="budget-fill" :style="{ width: `${wb.budgetStatus.value.percent}%` }"></i>
       </div>
@@ -447,10 +456,9 @@ const focusedSlice = computed(() => {
         <div class="chart-box-head">
           <div class="chart-head-top">
             <h3>消费类别占比</h3>
-            <button class="btn btn-text btn-sm" type="button" @click="wb.openLedgerDialog()">+ 记一笔</button>
           </div>
           <p class="chart-sub">
-            {{ categorySlices.isCurrentMonth ? '当月各分类支出结构对比' : '历史累计支出结构对比' }}
+            {{ categorySlices.isCurrentMonth ? '当月各分类支出结构' : '历史累计支出结构' }}
           </p>
         </div>
 

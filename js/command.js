@@ -83,6 +83,32 @@ export const CATEGORIES = [
   '🏥 医疗', '📚 学习', '🎁 社交', '💇 个人护理', '🐾 宠物', '💳 固定支出', '🔌 日用', '📦 杂项', '🎁 其他'
 ];
 
+const LEGACY_LEDGER_CATS = {
+  '🏠 居家': '🏠 居住',
+  居家: '🏠 居住',
+  自由职业: '💼 收入'
+};
+
+const CATEGORY_TEXT_MAP = Object.fromEntries(
+  CATEGORIES.map(c => [c.replace(/^[^\u4e00-\u9fa5A-Za-z0-9]+/, '').trim(), c])
+);
+
+export function normalizeLedgerCategory(category) {
+  const raw = String(category || '').trim();
+  if (!raw) return '🎁 其他';
+  if (CATEGORIES.includes(raw)) return raw;
+  if (LEGACY_LEDGER_CATS[raw]) return LEGACY_LEDGER_CATS[raw];
+  const plain = raw.replace(/^[^\u4e00-\u9fa5A-Za-z0-9]+/, '').trim();
+  if (LEGACY_LEDGER_CATS[plain]) return LEGACY_LEDGER_CATS[plain];
+  if (CATEGORY_TEXT_MAP[plain]) return CATEGORY_TEXT_MAP[plain];
+  return raw;
+}
+
+export function displayCategoryName(category) {
+  const normalized = normalizeLedgerCategory(category);
+  return String(normalized || '其他').replace(/^[^\u4e00-\u9fa5A-Za-z0-9]+/, '').trim() || '其他';
+}
+
 const CATEGORY_ICONS = {
   '🍚 吃饭': 'coffee', '🚇 交通': 'bike', '🏠 居住': 'house', '🛍 购物': 'wallet',
   '🎮 娱乐': 'goal', '💼 收入': 'wallet-cards', '🏥 医疗': 'circle-alert',
@@ -92,7 +118,8 @@ const CATEGORY_ICONS = {
 };
 
 export function categoryIcon(category) {
-  return CATEGORY_ICONS[category] || 'tags';
+  const normalized = normalizeLedgerCategory(category);
+  return CATEGORY_ICONS[normalized] || 'tags';
 }
 
 const WEEK = { 周日: 0, 周一: 1, 周二: 2, 周三: 3, 周四: 4, 周五: 5, 周六: 6, 星期日: 0, 星期一: 1, 星期二: 2, 星期三: 3, 星期四: 4, 星期五: 5, 星期六: 6 };
@@ -291,6 +318,16 @@ export function parseCommand(raw, now = new Date()) {
   const text = String(raw || '').trim();
   if (!text) return null;
 
+  const noteMatch = text.match(/^(?:便签|笔记|记笔记)\s*[:：]\s*(.+)$/s);
+  if (noteMatch) {
+    const content = noteMatch[1].trim();
+    if (!content || /[<>\u0000-\u0008\u000b-\u001f\u007f]/.test(content)) return null;
+    const parts = content.split(/\s*(?:\n|[|｜])\s*/);
+    const title = parts[0].trim().slice(0, 80);
+    const body = parts.slice(1).join('\n').trim();
+    return title ? { kind: 'note', payload: { title, body } } : null;
+  }
+
   const explicitTodo = TODO_RE.test(text);
   if (blockedCommand(text, explicitTodo)) return null;
   if (ambiguousLedgerNumber(text) && CURRENCY_RE.test(text)) return null;
@@ -432,8 +469,20 @@ export function resolveLocalShortcut(raw) {
   if (['喝水', '饮水'].includes(target)) return entry('prefill', 'habits', { field: 'water' });
   if (['开会', '写周报', '发邮件'].includes(target)) return entry('prefill', 'todo', { text: target });
   const pages = {
-    sport: ['运动'], habits: ['习惯', '健康', '健康打卡'], study: ['学习', '专注', '番茄钟'],
-    calendar: ['日历', '提醒', '倒计时'], todo: ['待办', '任务']
+    home: ['首页', '今天', '概览'],
+    todo: ['待办', '任务', '待办清单'],
+    study: ['学习', '专注', '番茄钟'],
+    habits: ['习惯', '健康', '健康打卡'],
+    sport: ['运动'],
+    ledger: ['账本', '记账'],
+    calendar: ['日历', '提醒', '倒计时'],
+    notes: ['便签', '笔记', '知识库'],
+    projects: ['项目', '项目看板', '里程碑'],
+    bookmarks: ['书签', '网址', '网址导航', '网站导航'],
+    toolbox: ['工具', '工具箱'],
+    standup: ['日报', '周报', '工作日报'],
+    weather: ['天气', '通勤天气'],
+    me: ['设置', '偏好设置']
   };
   for (const [page, names] of Object.entries(pages)) {
     if (names.includes(target)) return entry('navigate', page);
@@ -555,7 +604,14 @@ export function preview(intent) {
       return `记录已完成学习 / 专注 +${p.minutes} 分钟`;
     case 'sport':
       return `运动 ${p.type} · ${p.minutes || '—'} 分钟${p.distance ? ` · ${p.distance} km` : ''}`;
+    case 'note':
+      return `便签：${p.title}${p.body ? ` · ${clipNotePreview(p.body)}` : ''}`;
     default:
       return '';
   }
+}
+
+function clipNotePreview(text) {
+  const clean = String(text || '').replace(/\s+/g, ' ').trim();
+  return clean.length > 24 ? `${clean.slice(0, 24)}…` : clean;
 }

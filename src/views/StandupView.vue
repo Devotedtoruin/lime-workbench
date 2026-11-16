@@ -72,9 +72,11 @@ async function runAiPolish(styleId = polishStyle.value) {
     if (res.ok) {
       aiPolishedPreview.value = res;
       wb.showToast(
-        res.mode === 'llm'
-          ? `已生成「${res.styleLabel}」风格润色建议`
-          : `已按「${res.styleLabel}」模板提炼要点`
+        res.llmFailed
+          ? `外部 AI 润色失败（${res.errorReason}），已回退本地模板`
+          : res.mode === 'llm'
+            ? `已生成「${res.styleLabel}」风格润色建议`
+            : `已按「${res.styleLabel}」模板提炼要点`
       );
     }
   } finally {
@@ -257,9 +259,9 @@ function downloadArchived(item) {
   <div class="page-shell standup-page">
     <header class="page-head standup-head">
       <div>
-        <p class="eyebrow">{{ wb.formattedDate.value }} · 进度复盘与文档输出</p>
+        <p class="eyebrow">{{ wb.formattedDate.value }}</p>
         <h1>工作日报</h1>
-        <p class="sub">自动汇总已完成任务、进行中事项、专注时长与工作便签，支持导出标准 Markdown 文档或直接分享至工作群。</p>
+        <p class="sub">汇总已完成事项、进行中任务与专注时长，导出为 Markdown 或纯文本。</p>
       </div>
       <div class="standup-head-actions">
         <div class="segmented" aria-label="汇总周期">
@@ -311,7 +313,7 @@ function downloadArchived(item) {
             <span class="polish-toolbar-label">
               <img :src="asset('assets/icons/sparkles.svg')" alt="" />智能提炼润色：
             </span>
-            <div class="polish-style-Group">
+            <div class="polish-style-group">
               <button
                 v-for="st in STANDUP_POLISH_STYLES"
                 :key="st.id"
@@ -337,11 +339,20 @@ function downloadArchived(item) {
         </div>
 
         <!-- 润色结果预览与替换卡片 -->
-        <div v-if="aiPolishedPreview" class="standup-ai-card">
+        <div v-if="aiPolishedPreview" class="standup-ai-card" :class="{ 'is-warning': aiPolishedPreview.llmFailed }">
           <div class="standup-ai-card-head">
             <div class="standup-ai-badge">
               <img :src="asset('assets/icons/sparkles.svg')" alt="" />
-              <strong>{{ aiPolishedPreview.styleLabel }} · {{ aiPolishedPreview.mode === 'llm' ? '接口模型润色预览' : '本地结构化提炼预览' }}</strong>
+              <strong>
+                {{ aiPolishedPreview.styleLabel }} ·
+                {{
+                  aiPolishedPreview.llmFailed
+                    ? '外部 AI 不可用，已由本地模板兜底'
+                    : aiPolishedPreview.mode === 'llm'
+                      ? '接口模型润色预览'
+                      : '本地结构化提炼预览'
+                }}
+              </strong>
             </div>
             <div class="standup-ai-actions">
               <button class="btn btn-primary btn-xs" type="button" @click="applyAiPolish">确认替换草稿</button>
@@ -442,7 +453,7 @@ function downloadArchived(item) {
         <div class="panel-head standup-draft-head">
           <div>
             <h2 class="panel-title">文档生成与预览</h2>
-            <p class="panel-sub">支持标准 Markdown 语法与纯文本格式无缝切换</p>
+            <p class="panel-sub">Markdown 与纯文本切换</p>
           </div>
           <div class="draft-mode-switches">
             <div class="segmented" aria-label="输出格式">
@@ -477,7 +488,7 @@ function downloadArchived(item) {
             <h4>一、{{ range === 'week' ? '本周已完成事项' : '今日已完成事项' }}</h4>
             <ul v-if="done.length" class="md-task-list">
               <li v-for="t in done" :key="t.id" class="is-done">
-                <span class="md-box checked" aria-hidden="true">✓</span>
+                <span class="md-box checked" aria-hidden="true"><img :src="asset('assets/icons/check.svg')" alt="" /></span>
                 <span>{{ t.text }}</span>
                 <code v-if="t.tag">{{ t.tag }}</code>
               </li>
@@ -537,7 +548,7 @@ function downloadArchived(item) {
             {{ copied ? '已复制到剪贴板' : formatMode === 'markdown' ? '复制 Markdown' : '复制纯文本' }}
           </button>
         </div>
-        <p class="tiny">所有汇总内容均在本地实时生成，支持直接粘贴至飞书、企业微信、钉钉或本地 Markdown 知识库。</p>
+        <p class="tiny">内容在本地实时生成，可直接粘贴至团队沟通工具或笔记软件。</p>
       </section>
     </div>
 
@@ -546,9 +557,9 @@ function downloadArchived(item) {
       <div class="panel-head">
         <div>
           <h2 class="panel-title">
-            <img :src="asset('assets/icons/calendar-days.svg')" alt="" />历史日报与周报归档时间线
+            <img :src="asset('assets/icons/calendar-days.svg')" alt="" />历史归档
           </h2>
-          <p class="panel-sub">按日期保存的阶段性产出快照，方便季度复盘、绩效述职与工作回溯</p>
+          <p class="panel-sub">按日期保存的日报与周报快照</p>
         </div>
         <span class="badge numeric">已归档 {{ wb.reportArchive.value.length }} 篇</span>
       </div>
@@ -617,7 +628,7 @@ function downloadArchived(item) {
   font-size: var(--text-meta); font-weight: 650; color: var(--ink-soft);
 }
 .polish-toolbar-label img { width: 13px; height: 13px; }
-.polish-style-Group { display: inline-flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+.polish-style-group { display: inline-flex; align-items: center; gap: 5px; flex-wrap: wrap; }
 .polish-style-btn {
   min-height: 26px; padding: 0 10px; border-radius: 6px;
   border: 1px solid var(--line); background: var(--surface);
@@ -641,12 +652,19 @@ function downloadArchived(item) {
   background: color-mix(in srgb, var(--brand-pale) 40%, var(--surface));
   display: flex; flex-direction: column; gap: 10px;
 }
+.standup-ai-card.is-warning {
+  border-color: color-mix(in srgb, var(--amber) 45%, var(--line));
+  background: color-mix(in srgb, var(--amber-pale) 45%, var(--surface));
+}
 .standup-ai-card-head {
   display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;
 }
 .standup-ai-badge {
   display: inline-flex; align-items: center; gap: 6px;
   font-size: var(--text-sm); color: var(--brand-deep);
+}
+.standup-ai-card.is-warning .standup-ai-badge {
+  color: var(--amber);
 }
 .standup-ai-badge img { width: 14px; height: 14px; }
 .standup-ai-actions { display: flex; align-items: center; gap: 6px; }
@@ -735,6 +753,7 @@ function downloadArchived(item) {
   display: inline-grid; place-items: center; font-size: 10px; font-weight: 800; color: var(--cta-fg);
 }
 .md-box.checked { background: var(--brand); border-color: var(--brand); }
+.md-box img { width: 11px; height: 11px; filter: brightness(0) invert(1); }
 .md-task-list code {
   padding: 1px 6px; border-radius: 5px; background: var(--surface-soft);
   border: 1px solid var(--line); font-size: var(--text-2xs); color: var(--muted);

@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useWorkbench } from './composables/useWorkbench.js';
 import SideRail from './components/SideRail.vue';
 import TopBar from './components/TopBar.vue';
@@ -10,15 +10,20 @@ import NotificationCenter from './components/NotificationCenter.vue';
 import MobileNav from './components/MobileNav.vue';
 import BreakOverlay from './components/BreakOverlay.vue';
 import HomeView from './views/HomeView.vue';
-import TodoView from './views/TodoView.vue';
-import StudyView from './views/StudyView.vue';
-import StandupView from './views/StandupView.vue';
-import CalendarView from './views/CalendarView.vue';
-import LedgerView from './views/LedgerView.vue';
-import HabitsView from './views/HabitsView.vue';
-import SportView from './views/SportView.vue';
-import WeatherView from './views/WeatherView.vue';
-import SettingsView from './views/SettingsView.vue';
+
+const TodoView = defineAsyncComponent(() => import('./views/TodoView.vue'));
+const ProjectsView = defineAsyncComponent(() => import('./views/ProjectsView.vue'));
+const StudyView = defineAsyncComponent(() => import('./views/StudyView.vue'));
+const StandupView = defineAsyncComponent(() => import('./views/StandupView.vue'));
+const CalendarView = defineAsyncComponent(() => import('./views/CalendarView.vue'));
+const BookmarksView = defineAsyncComponent(() => import('./views/BookmarksView.vue'));
+const NotesView = defineAsyncComponent(() => import('./views/NotesView.vue'));
+const ToolboxView = defineAsyncComponent(() => import('./views/ToolboxView.vue'));
+const LedgerView = defineAsyncComponent(() => import('./views/LedgerView.vue'));
+const HabitsView = defineAsyncComponent(() => import('./views/HabitsView.vue'));
+const SportView = defineAsyncComponent(() => import('./views/SportView.vue'));
+const WeatherView = defineAsyncComponent(() => import('./views/WeatherView.vue'));
+const SettingsView = defineAsyncComponent(() => import('./views/SettingsView.vue'));
 
 const wb = useWorkbench();
 // View Transitions already animate the page shell. Keep the CSS page-enter only as the
@@ -34,9 +39,13 @@ const taskDialog = ref({ open: false, task: null });
 const views = {
   home: HomeView,
   todo: TodoView,
+  projects: ProjectsView,
   study: StudyView,
   standup: StandupView,
   calendar: CalendarView,
+  bookmarks: BookmarksView,
+  notes: NotesView,
+  toolbox: ToolboxView,
   ledger: LedgerView,
   habits: HabitsView,
   sport: SportView,
@@ -80,6 +89,10 @@ function armGChord() {
 
 const G_CHORD_ROUTES = {
   t: 'todo',
+  p: 'projects',
+  b: 'bookmarks',
+  k: 'notes',
+  u: 'toolbox',
   l: 'ledger',
   h: 'home',
   d: 'standup',
@@ -286,6 +299,10 @@ onBeforeUnmount(() => {
         <div><dt><kbd>Ctrl</kbd><kbd>K</kbd></dt><dd>打开快捷命令 / 全局搜索</dd></div>
         <div><dt><kbd>N</kbd></dt><dd>快速新建任务</dd></div>
         <div><dt><kbd>G</kbd><span>+</span><kbd>T</kbd></dt><dd>跳转「计划待办」页面</dd></div>
+        <div><dt><kbd>G</kbd><span>+</span><kbd>P</kbd></dt><dd>跳转「项目与进度」页面</dd></div>
+        <div><dt><kbd>G</kbd><span>+</span><kbd>B</kbd></dt><dd>跳转「网址导航」页面</dd></div>
+        <div><dt><kbd>G</kbd><span>+</span><kbd>K</kbd></dt><dd>跳转「知识笔记库」页面</dd></div>
+        <div><dt><kbd>G</kbd><span>+</span><kbd>U</kbd></dt><dd>跳转「职业工具箱」页面</dd></div>
         <div><dt><kbd>G</kbd><span>+</span><kbd>L</kbd></dt><dd>跳转「账本」页面</dd></div>
         <div><dt><kbd>G</kbd><span>+</span><kbd>H</kbd></dt><dd>跳转「今天」首页看板</dd></div>
         <div><dt><kbd>G</kbd><span>+</span><kbd>D</kbd></dt><dd>跳转「工作日报」页面</dd></div>
@@ -301,7 +318,7 @@ onBeforeUnmount(() => {
 
   <div v-if="gChordActive" class="chord-indicator" role="status" aria-live="polite">
     <kbd>G</kbd>
-    <span>按 <kbd>T</kbd> 待办 · <kbd>L</kbd> 账本 · <kbd>H</kbd> 首页 · <kbd>D</kbd> 日报 · <kbd>C</kbd> 日历 · <kbd>S</kbd> 专注</span>
+    <span>按 <kbd>T</kbd> 待办 · <kbd>P</kbd> 项目 · <kbd>B</kbd> 网址 · <kbd>K</kbd> 笔记 · <kbd>U</kbd> 工具箱 · <kbd>L</kbd> 账本</span>
   </div>
 
   <div class="toast" :class="{ 'is-show': wb.toastVisible.value }" role="status" aria-live="polite">
@@ -355,7 +372,6 @@ onBeforeUnmount(() => {
 }
 .shell.is-readonly form,
 .shell.is-readonly .btn-primary,
-.shell.is-readonly .rail-quick,
 .shell.is-readonly .task-list,
 .shell.is-readonly .checkbox,
 .shell.is-readonly .focus-play,

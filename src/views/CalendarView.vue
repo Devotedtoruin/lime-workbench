@@ -69,6 +69,7 @@ function addTaskOnSelected() {
 
 /* 定时提醒 */
 const schedule = reactive({ label: '', repeat: 'once', date: wb.todayStr.value, time: '18:00' });
+const scheduleError = ref('');
 
 onMounted(() => {
   const prefill = wb.consumePrefill('reminder');
@@ -76,21 +77,49 @@ onMounted(() => {
 });
 
 function addSchedule() {
-  if (wb.addScheduledReminder({ ...schedule })) schedule.label = '';
+  scheduleError.value = '';
+  const clean = schedule.label.trim();
+  if (!clean) {
+    scheduleError.value = '请填写提醒事项名称';
+    return;
+  }
+  if (schedule.repeat === 'once' && !schedule.date) {
+    scheduleError.value = '请选择提醒日期';
+    return;
+  }
+  if (!schedule.time) {
+    scheduleError.value = '请选择提醒时间';
+    return;
+  }
+  if (wb.addScheduledReminder({ ...schedule, label: clean })) schedule.label = '';
 }
 
 /* 周期提醒 */
 const customInterval = reactive({ label: '', every: 45 });
+const intervalError = ref('');
 function addInterval() {
+  intervalError.value = '';
   const every = Number(customInterval.every);
-  wb.addIntervalReminder('custom', every, customInterval.label.trim() || `每 ${every} 分钟提醒`);
-  customInterval.label = '';
+  if (!Number.isInteger(every) || every < 1 || every > 1440) {
+    intervalError.value = '间隔需为 1–1440 分钟的整数';
+    return;
+  }
+  if (wb.addIntervalReminder('custom', every, customInterval.label.trim() || `每 ${every} 分钟提醒`)) {
+    customInterval.label = '';
+  }
 }
 
 /* 倒计时 */
 const customTimer = ref(25);
+const timerError = ref('');
 function addTimer() {
-  wb.addCountdownTimer('custom', customTimer.value, `倒计时 ${customTimer.value} 分钟`);
+  timerError.value = '';
+  const mins = Number(customTimer.value);
+  if (!Number.isInteger(mins) || mins < 1 || mins > 1440) {
+    timerError.value = '倒计时时长需为 1–1440 分钟的整数';
+    return;
+  }
+  wb.addCountdownTimer('custom', mins, `倒计时 ${mins} 分钟`);
 }
 
 function scheduleText(r) {
@@ -111,7 +140,7 @@ function toggleSound() {
     <header class="page-head">
       <div>
         <h1>日历与提醒</h1>
-        <p class="sub">安排会议、任务截止时间与工作间歇提醒，支持在日历中直接勾选或编辑任务。</p>
+        <p class="sub">管理每日排期、周期提醒与倒计时。</p>
       </div>
       <div class="page-head-actions">
         <button class="btn btn-soft" type="button" :aria-pressed="wb.state.soundOn" @click="toggleSound">
@@ -165,7 +194,7 @@ function toggleSound() {
               <img :src="asset('assets/icons/plus.svg')" alt="" />在这一天添加任务
             </button>
           </div>
-          <div v-if="!dayTasks.length" class="empty" style="padding: 20px">
+          <div v-if="!dayTasks.length" class="empty cal-empty">
             <span class="empty-art" aria-hidden="true"><img :src="asset('assets/icons/calendar-days.svg')" alt="" /></span>
             <p>这一天还没有安排。</p>
           </div>
@@ -238,28 +267,29 @@ function toggleSound() {
         <!-- 定时提醒 -->
         <section class="panel glass rim">
           <div class="panel-head"><h2 class="panel-title">定时提醒</h2><span class="badge">按本机时区</span></div>
-          <form class="schedule-form" @submit.prevent="addSchedule">
+          <form class="schedule-form" novalidate @submit.prevent="addSchedule">
             <label class="field">
               <span>提醒事项</span>
-              <input v-model="schedule.label" class="input" maxlength="120" required placeholder="例如：每日下班前复盘" />
+              <input v-model="schedule.label" class="input" :class="{ 'is-invalid': scheduleError }" maxlength="120" placeholder="例如：每日下班前复盘" @input="scheduleError = ''" />
             </label>
             <div class="schedule-row">
               <label class="field">
                 <span>重复</span>
-                <select v-model="schedule.repeat" class="input">
+                <select v-model="schedule.repeat" class="input" @change="scheduleError = ''">
                   <option value="once">仅一次</option>
                   <option value="daily">每天</option>
                 </select>
               </label>
               <label v-if="schedule.repeat === 'once'" class="field">
                 <span>日期</span>
-                <input v-model="schedule.date" class="input" type="date" required />
+                <input v-model="schedule.date" class="input" type="date" @input="scheduleError = ''" />
               </label>
               <label class="field">
                 <span>时间</span>
-                <input v-model="schedule.time" class="input" type="time" required />
+                <input v-model="schedule.time" class="input" type="time" @input="scheduleError = ''" />
               </label>
             </div>
+            <p v-if="scheduleError" class="field-error sched-error">{{ scheduleError }}</p>
             <button class="btn btn-primary" type="submit">添加定时提醒</button>
           </form>
           <p class="tiny">网页需保持运行；后台或关闭浏览器时不能保证准点通知，重新打开后会补显到期提醒。</p>
@@ -275,10 +305,11 @@ function toggleSound() {
               <em>每 {{ p.every }} 分</em>
             </button>
           </div>
-          <form class="custom-row" @submit.prevent="addInterval">
+          <form class="custom-row" novalidate @submit.prevent="addInterval">
             <input v-model="customInterval.label" class="input" maxlength="300" placeholder="自定义提醒内容" />
-            <label class="every-label">每 <input v-model.number="customInterval.every" class="input every-input" type="number" min="1" max="1440" /> 分钟</label>
+            <label class="every-label">每 <input v-model.number="customInterval.every" class="input every-input" :class="{ 'is-invalid': intervalError }" type="number" min="1" max="1440" @input="intervalError = ''" /> 分钟</label>
             <button class="btn btn-soft" type="submit">添加</button>
+            <p v-if="intervalError" class="field-error custom-error">{{ intervalError }}</p>
           </form>
         </section>
 
@@ -292,9 +323,10 @@ function toggleSound() {
               <em>{{ p.minutes }} 分</em>
             </button>
           </div>
-          <form class="custom-row" @submit.prevent="addTimer">
-            <label class="every-label">自定义时长 <input v-model.number="customTimer" class="input every-input" type="number" min="1" max="1440" /> 分钟</label>
+          <form class="custom-row" novalidate @submit.prevent="addTimer">
+            <label class="every-label">自定义时长 <input v-model.number="customTimer" class="input every-input" :class="{ 'is-invalid': timerError }" type="number" min="1" max="1440" @input="timerError = ''" /> 分钟</label>
             <button class="btn btn-soft" type="submit">开始</button>
+            <p v-if="timerError" class="field-error custom-error">{{ timerError }}</p>
           </form>
         </section>
       </div>
@@ -373,8 +405,6 @@ function toggleSound() {
 .cal-tasks span.done { text-decoration: line-through; color: var(--muted); }
 .cal-tasks em { font-style: normal; font-size: var(--text-meta); color: var(--muted); }
 .cal-task-actions { display: flex; align-items: center; gap: 2px; }
-.btn-xs { width: 28px; height: 28px; flex-basis: 28px; border-radius: 7px; }
-.btn-xs img { width: 14px; height: 14px; }
 
 /* ---------- 当日回顾 ---------- */
 .day-review { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); }
@@ -399,14 +429,16 @@ function toggleSound() {
 .review-metrics strong { font-size: var(--text-md); font-weight: 750; }
 .review-metrics strong em { font-style: normal; margin-left: 2px; font-size: 11px; font-weight: 600; color: var(--muted); }
 
+.cal-empty { padding: 20px; }
 .schedule-form { display: flex; flex-direction: column; gap: 11px; }
+.sched-error { margin-top: 0; }
 .schedule-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; }
 .tiny { margin-top: 10px; font-size: var(--text-sm); color: var(--muted); line-height: 1.6; }
 
 .preset-chips { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 12px; }
 .preset-chip {
   display: inline-flex; align-items: center; gap: 6px;
-  min-height: 34px; padding: 0 10px; border-radius: var(--radius-pill);
+  min-height: 34px; padding: 0 10px; border-radius: 8px;
   border: 1px solid var(--line); background: var(--surface); color: var(--ink-soft);
   font-size: var(--text-meta); transition: border-color var(--motion-fast), background-color var(--motion-fast);
 }
@@ -414,6 +446,7 @@ function toggleSound() {
 .preset-chip img { width: 17px; height: 17px; object-fit: contain; }
 .preset-chip em { font-style: normal; font-size: var(--text-meta); color: var(--muted); }
 .custom-row { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
+.custom-error { flex-basis: 100%; margin-top: 0; }
 .custom-row .input { flex: 1 1 160px; }
 .every-label { display: flex; align-items: center; gap: 6px; font-size: var(--text-sm); color: var(--muted); white-space: nowrap; }
 .every-input { width: 72px; min-height: 38px; text-align: center; }

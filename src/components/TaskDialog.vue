@@ -22,6 +22,7 @@ const form = reactive({
 });
 const newSubtaskText = ref('');
 const aiBreakingDown = ref(false);
+const titleError = ref('');
 const isEdit = computed(() => Boolean(props.task?.id));
 const titleId = 'task-dialog-title';
 
@@ -37,6 +38,7 @@ watch(() => props.open, open => {
   form.subtasks = t?.id ? wb.getSubtasks(t.id).map(s => ({ ...s })) : [];
   newSubtaskText.value = '';
   aiBreakingDown.value = false;
+  titleError.value = '';
 });
 
 function close() { emit('update:open', false); }
@@ -69,7 +71,7 @@ function removeDraftSubtask(idx) {
 async function requestAiBreakdown() {
   const cleanTitle = form.text.trim();
   if (!cleanTitle) {
-    wb.showToast('请先输入任务内容后再使用 AI 拆解');
+    titleError.value = '请先输入任务内容后再使用 AI 拆解';
     return;
   }
   if (aiBreakingDown.value) return;
@@ -93,23 +95,33 @@ async function requestAiBreakdown() {
       existing.add(step);
       added++;
     }
-    wb.showToast(
-      res.mode === 'llm'
-        ? `AI 已拆解并填入 ${added} 项执行步骤`
-        : `已根据任务语义智能生成 ${added} 项执行步骤`
-    );
+    if (res.llmFailed) {
+      wb.showToast(`外部 AI 不可用（${res.errorReason}），已由本地模板补充 ${added} 项步骤`);
+    } else {
+      wb.showToast(
+        res.mode === 'llm'
+          ? `AI 已拆解并填入 ${added} 项执行步骤`
+          : `已根据任务语义智能生成 ${added} 项执行步骤`
+      );
+    }
   } finally {
     aiBreakingDown.value = false;
   }
 }
 
 function submit() {
+  titleError.value = '';
+  const cleanText = form.text.trim();
+  if (!cleanText) {
+    titleError.value = '请输入任务内容';
+    return;
+  }
   // 如果子步骤输入框还有未回车文本，自动并入
   if (newSubtaskText.value.trim() && form.subtasks.length < 20) {
     addDraftSubtask();
   }
   const payload = {
-    text: form.text.trim(),
+    text: cleanText,
     date: form.date || '',
     time: form.date ? form.time : '',
     priority: form.priority,
@@ -150,13 +162,22 @@ function onOverlay(event) { if (event.target === event.currentTarget) close(); }
           </button>
         </div>
 
-        <form @submit.prevent="submit">
+        <form novalidate @submit.prevent="submit">
           <label class="field">
             <span>任务内容</span>
-            <input v-model="form.text" class="input" maxlength="300" required placeholder="例如：整理季度产品评审材料" autofocus />
+            <input
+              v-model="form.text"
+              class="input"
+              :class="{ 'is-invalid': titleError }"
+              maxlength="300"
+              placeholder="例如：整理季度产品评审材料"
+              autofocus
+              @input="titleError = ''"
+            />
+            <p v-if="titleError" class="field-error">{{ titleError }}</p>
           </label>
 
-          <div class="form-grid" style="margin-top: 14px">
+          <div class="form-grid form-grid-spaced">
             <label class="field">
               <span>计划日期</span>
               <input v-model="form.date" class="input" type="date" />
@@ -183,7 +204,7 @@ function onOverlay(event) { if (event.target === event.currentTarget) close(); }
                 <option value="monthly">每月重复</option>
               </select>
             </label>
-            <label class="field" style="grid-column: 1 / -1">
+            <label class="field field-full">
               <span>分类标签</span>
               <input v-model="form.tag" class="input" maxlength="80" placeholder="个人计划 / 研发协同 / 财务报销" />
             </label>
@@ -231,7 +252,7 @@ function onOverlay(event) { if (event.target === event.currentTarget) close(); }
             <button v-if="isEdit" class="btn btn-ghost btn-danger-text" type="button" @click="remove">
               <img :src="asset('assets/icons/trash.svg')" alt="" />删除
             </button>
-            <span style="flex: 1"></span>
+            <span class="modal-spacer"></span>
             <button class="btn btn-soft" type="button" @click="close">取消</button>
             <button class="btn btn-primary" type="submit">
               <img :src="asset('assets/icons/check.svg')" alt="" />{{ isEdit ? '保存修改' : '创建任务' }}
@@ -244,6 +265,9 @@ function onOverlay(event) { if (event.target === event.currentTarget) close(); }
 </template>
 
 <style scoped>
+.form-grid-spaced { margin-top: 14px; }
+.field-full { grid-column: 1 / -1; }
+.modal-spacer { flex: 1; }
 .subtask-section {
   margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line);
   display: flex; flex-direction: column; gap: 8px;

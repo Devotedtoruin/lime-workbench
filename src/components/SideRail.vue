@@ -10,19 +10,31 @@ const hasIdentity = computed(() =>
 
 const openTodoCount = computed(() => wb.state.todos.filter(t => !t.done).length);
 
-const navItems = [
+const allNavItems = [
   { page: 'home', label: '今天', icon: 'sun-medium' },
   { page: 'todo', label: '任务', icon: 'list-checks' },
+  { page: 'projects', label: '项目', icon: 'briefcase' },
   { page: 'study', label: '专注', icon: 'timer' },
   { page: 'standup', label: '日报', icon: 'clipboard-list' },
   { page: 'calendar', label: '日历', icon: 'calendar-days' }
 ];
-const lifeItems = [
+const allToolsItems = [
+  { page: 'bookmarks', label: '网址', icon: 'tags' },
+  { page: 'notes', label: '笔记', icon: 'book-open' },
+  { page: 'toolbox', label: '工具箱', icon: 'zap' }
+];
+const allLifeItems = [
   { page: 'ledger', label: '账本', icon: 'wallet-cards' },
   { page: 'habits', label: '习惯', icon: 'leaf' },
   { page: 'sport', label: '运动', icon: 'activity' },
   { page: 'weather', label: '天气', icon: 'cloud-sun' }
 ];
+
+const visibleSet = computed(() => new Set(wb.visibleNavPages.value));
+const navItems = computed(() => allNavItems.filter(item => visibleSet.value.has(item.page)));
+const toolsItems = computed(() => allToolsItems.filter(item => visibleSet.value.has(item.page)));
+const lifeItems = computed(() => allLifeItems.filter(item => visibleSet.value.has(item.page)));
+const isFocusedRole = computed(() => wb.currentRole.value.navPages.length < 14);
 
 const drawerOpen = computed(() => wb.mobileDrawerOpen.value);
 function navigate(page) {
@@ -54,19 +66,19 @@ watch(drawerOpen, open => {
     :class="{ 'is-collapsed': wb.railCollapsed.value, 'is-mobile-open': drawerOpen }"
     aria-label="主导航"
   >
-    <!-- 品牌 -->
+    <!-- 品牌与当前职业空间 -->
     <a class="rail-brand" href="#home" aria-label="返回今天" @click.prevent="navigate('home')">
       <span class="rail-mark">
         <img :src="asset('assets/brand.svg')" alt="" />
       </span>
       <span class="rail-brand-copy">
         <strong>{{ wb.workspaceName.value }}</strong>
-        <small>本地优先 · 无需账号</small>
+        <small>{{ wb.currentRole.value.name }} · {{ wb.currentRole.value.workspaceLabel }}</small>
       </span>
     </a>
 
     <nav class="rail-nav">
-      <p class="rail-group">工作</p>
+      <p v-if="navItems.length" class="rail-group">工作</p>
       <button
         v-for="item in navItems"
         :key="item.page"
@@ -85,7 +97,22 @@ watch(drawerOpen, open => {
         >{{ openTodoCount }}</span>
       </button>
 
-      <p class="rail-group">生活</p>
+      <p v-if="toolsItems.length" class="rail-group">知识与工具</p>
+      <button
+        v-for="item in toolsItems"
+        :key="item.page"
+        type="button"
+        class="rail-item"
+        :class="{ 'is-active': wb.currentPage.value === item.page }"
+        :aria-current="wb.currentPage.value === item.page ? 'page' : undefined"
+        :title="wb.railCollapsed.value ? item.label : undefined"
+        @click="navigate(item.page)"
+      >
+        <img :src="asset(`assets/icons/${item.icon}.svg`)" alt="" />
+        <span class="rail-label">{{ item.label }}</span>
+      </button>
+
+      <p v-if="lifeItems.length" class="rail-group">生活</p>
       <button
         v-for="item in lifeItems"
         :key="item.page"
@@ -112,10 +139,19 @@ watch(drawerOpen, open => {
         <img :src="asset('assets/icons/settings.svg')" alt="" />
         <span class="rail-label">设置</span>
       </button>
+
+      <button
+        v-if="isFocusedRole && !wb.railCollapsed.value"
+        type="button"
+        class="rail-mode-toggle"
+        @click="wb.toggleShowAllModules()"
+      >
+        <span>{{ wb.extState.showAllModules ? '仅看角色常用模块' : '显示全部模块 (14)' }}</span>
+      </button>
     </nav>
 
     <div class="rail-foot">
-      <button class="rail-user" type="button" title="设置头像与称呼" @click="navigate('me')">
+      <button class="rail-user" type="button" title="设置头像与职业角色" @click="navigate('me')">
         <span class="rail-avatar" aria-hidden="true">
           <img v-if="wb.userAvatar.value.kind === 'image'" :src="wb.userAvatar.value.value" alt="" />
           <img v-else-if="!hasIdentity" class="rail-avatar-placeholder" :src="asset('assets/icons/circle-user-round.svg')" alt="" />
@@ -123,7 +159,7 @@ watch(drawerOpen, open => {
         </span>
         <span class="rail-user-copy">
           <strong>{{ wb.state.settings.displayName?.trim() || '设置形象' }}</strong>
-          <small>{{ hasIdentity ? '点此编辑形象' : '头像与称呼' }}</small>
+          <small>{{ wb.currentRole.value.name }} · 点此切换</small>
         </span>
       </button>
 
@@ -249,6 +285,25 @@ watch(drawerOpen, open => {
   border-radius: 6px; background: var(--surface); border: 1px solid var(--line);
   color: var(--muted); font-size: var(--text-2xs); font-weight: 650; font-variant-numeric: tabular-nums;
 }
+.rail-mode-toggle {
+  margin: 8px 6px 2px;
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--muted);
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  text-align: left;
+  flex-shrink: 0;
+  transition: border-color var(--motion-fast), color var(--motion-fast), background-color var(--motion-fast);
+}
+.rail-mode-toggle:hover {
+  border-color: var(--brand);
+  color: var(--brand-deep);
+  background: var(--brand-pale);
+}
 
 /* 底部：个人头像 */
 .rail-foot {
@@ -305,7 +360,9 @@ watch(drawerOpen, open => {
     border-radius: 0 calc(var(--radius-card) + 6px) calc(var(--radius-card) + 6px) 0;
     transform: translateX(calc(-100% - 24px));
     width: min(300px, 84vw);
-    padding-top: 20px;
+    padding-top: calc(16px + env(safe-area-inset-top));
+    padding-bottom: calc(16px + env(safe-area-inset-bottom));
+    overscroll-behavior: contain;
     visibility: hidden; pointer-events: none;
     transition: transform var(--motion-slow) var(--ease-spring), visibility 0s var(--motion-slow);
   }
@@ -313,18 +370,21 @@ watch(drawerOpen, open => {
     transform: none; visibility: visible; pointer-events: auto;
     transition-delay: 0s;
   }
+  .rail-item { min-height: 44px; padding: 0 12px; }
+  .rail-user { min-height: 44px; }
+  .rail-tool { width: 44px; height: 44px; flex: 0 0 44px; }
   .rail.is-collapsed { width: min(300px, 84vw); }
   .rail.is-collapsed .rail-brand { justify-content: flex-start; padding: 2px 8px 14px; }
   .rail.is-collapsed .rail-brand-copy { display: flex; }
   .rail.is-collapsed .rail-label, .rail.is-collapsed .rail-group { display: block; }
   .rail.is-collapsed .rail-count { display: inline-grid; }
-  .rail.is-collapsed .rail-item { justify-content: flex-start; padding: 0 11px; }
+  .rail.is-collapsed .rail-item { justify-content: flex-start; padding: 0 12px; }
   .rail.is-collapsed .rail-foot { flex-direction: row; align-items: center; }
   .rail.is-collapsed .rail-user { flex: 1; padding: 5px; }
   .rail.is-collapsed .rail-user-copy { display: flex; }
   .rail.is-collapsed .rail-tools { flex-direction: row; }
   .rail-tool.collapse-btn { display: none; }
-  .rail-close { display: grid; }
+  .rail-close { display: grid; width: 44px; height: 44px; flex: 0 0 44px; }
   .rail-backdrop {
     position: fixed; inset: 0; z-index: 39; border: 0; padding: 0;
     background: rgb(15 23 42 / .42);

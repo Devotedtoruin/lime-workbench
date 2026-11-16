@@ -64,9 +64,28 @@ export function searchAll(query, state, opts = {}) {
     out.push({
       kind: 'note',
       id: `note-${note.id}`,
+      entityId: note.id,
       title: clip(note.title || '（无标题）', 80),
-      meta: bodyHit ? clip(note.body) : '工作便签',
-      page: 'home'
+      meta: bodyHit ? clip(note.body) : '知识笔记',
+      page: 'notes'
+    });
+  }
+
+  // Projects — name, meta, target, and milestone items.
+  for (const project of opts.projects || state.projects || []) {
+    const milestoneHit = (project.milestones || []).find(m => has(m.text, q));
+    if (!has(project.name, q) && !has(project.meta, q) && !has(project.target, q) && !milestoneHit) continue;
+    const total = Array.isArray(project.milestones) ? project.milestones.length : 0;
+    const done = total ? project.milestones.filter(m => m.done).length : 0;
+    out.push({
+      kind: 'project',
+      id: `project-${project.id}`,
+      entityId: project.id,
+      title: clip(project.name || '未命名项目', 80),
+      meta: milestoneHit
+        ? clip(`里程碑：${milestoneHit.text}`)
+        : [project.meta, total ? `${done}/${total}` : ''].filter(Boolean).join(' · ') || '项目看板',
+      page: 'projects'
     });
   }
 
@@ -115,14 +134,14 @@ export function searchAll(query, state, opts = {}) {
       id: `link-${link.id}`,
       title: clip(link.title || link.url, 80),
       meta: clip(link.url, 50),
-      page: 'home'
+      page: 'bookmarks'
     });
   }
 
   return groupCap(out, LIMIT_PER_KIND);
 }
 
-const KIND_ORDER = ['task', 'note', 'ledger', 'reminder', 'link', 'sport'];
+const KIND_ORDER = ['task', 'project', 'note', 'ledger', 'reminder', 'link', 'sport'];
 
 function groupCap(items, limit) {
   const counts = new Map();
@@ -140,6 +159,7 @@ function groupCap(items, limit) {
 
 export const KIND_LABELS = Object.freeze({
   task: '任务',
+  project: '项目',
   note: '便签',
   ledger: '账目',
   reminder: '提醒',

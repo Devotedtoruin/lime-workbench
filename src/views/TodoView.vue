@@ -56,6 +56,17 @@ const rows = computed(() => {
   });
 });
 
+const taskExtrasMap = computed(() => {
+  const map = new Map();
+  for (const task of rows.value) {
+    const subtasks = wb.getSubtasks(task.id);
+    const doneSubtasks = subtasks.filter(s => s.done).length;
+    const recurrence = wb.getTaskRecurrence(task.id);
+    map.set(task.id, { subtasks, doneSubtasks, recurrence });
+  }
+  return map;
+});
+
 watch(rows, list => {
   if (!list.length) {
     focusedTaskId.value = null;
@@ -129,9 +140,11 @@ async function runInlineAiBreakdown(task) {
     }
     expandedTaskIds.add(task.id);
     wb.showToast(
-      res.mode === 'llm'
-        ? `已拆解并添加 ${added} 项子步骤`
-        : `已按本地模板生成 ${added} 项子步骤`
+      res.llmFailed
+        ? `外部 AI 不可用（${res.errorReason}），已按本地模板补充 ${added} 项子步骤`
+        : res.mode === 'llm'
+          ? `已拆解并添加 ${added} 项子步骤`
+          : `已按本地模板生成 ${added} 项子步骤`
     );
   } finally {
     aiBreakingTaskId.value = null;
@@ -201,7 +214,7 @@ onBeforeUnmount(() => {
     <header class="page-head">
       <div>
         <h1>任务与排期</h1>
-        <p class="sub">集中管理日程待办、子任务步骤（Checklist）与周期重复事项，支持列表与四象限矩阵双视图。</p>
+        <p class="sub">管理待办、子步骤与周期重复事项，支持列表与四象限视图。</p>
       </div>
       <div class="page-head-actions">
         <div class="segmented" aria-label="视图模式">
@@ -221,7 +234,7 @@ onBeforeUnmount(() => {
         ref="quickInput"
         v-model="quickText"
         maxlength="300"
-        placeholder="快速录入待办事项，支持自动解析日期与时间（如：明天 15:00 项目周会）"
+        placeholder="快速录入待办，支持自动识别日期与时间（如：明天 15:00 项目周会）"
         aria-label="快速录入新任务"
         autocomplete="off"
       />
@@ -233,7 +246,7 @@ onBeforeUnmount(() => {
       <div class="panel-head">
         <div>
           <h2 class="panel-title">四象限优先级矩阵</h2>
-          <p class="panel-sub">拖拽任务卡片在四个象限之间移动，自动同步任务优先级与排期</p>
+          <p class="panel-sub">拖拽卡片跨象限调整优先级与排期</p>
         </div>
       </div>
       <PriorityMatrix @edit-task="task => emit('new-task', task)" />
@@ -295,17 +308,14 @@ onBeforeUnmount(() => {
           ref="virtualListRef"
           :items="rows"
           :item-height="66"
-          :threshold="80"
+          :threshold="expandedTaskIds.size > 0 ? 100000 : 80"
           :max-height="600"
           tag="ul"
           list-class="task-list"
+          :row-class="t => ({ done: t.done, 'is-focused': focusedTaskId === t.id })"
         >
-          <template #default="{ item: task, index }">
-            <li
-              :data-vlist-index="index"
-              :class="{ done: task.done, 'is-focused': focusedTaskId === task.id }"
-              @click="focusedTaskId = task.id"
-            >
+          <template #default="{ item: task }">
+            <div class="task-row-wrap" @click="focusedTaskId = task.id">
               <div class="task-main-row">
                 <input
                   class="checkbox"
@@ -322,11 +332,13 @@ onBeforeUnmount(() => {
                       class="subtask-toggle-btn numeric"
                       @click.stop="toggleExpandSubtasks(task.id)"
                     >
-                      <template v-if="wb.getSubtasks(task.id).length">
-                        ✓ 子步骤 {{ wb.getSubtasks(task.id).filter(s => s.done).length }}/{{ wb.getSubtasks(task.id).length }}
+                      <template v-if="taskExtrasMap.get(task.id)?.subtasks.length">
+                        <img class="inline-mini-icon" :src="asset('assets/icons/circle-check.svg')" alt="" />
+                        子步骤 {{ taskExtrasMap.get(task.id).doneSubtasks }}/{{ taskExtrasMap.get(task.id).subtasks.length }}
                       </template>
                       <template v-else>
-                        + 添加子步骤
+                        <img class="inline-mini-icon" :src="asset('assets/icons/plus.svg')" alt="" />
+                        添加子步骤
                       </template>
                     </button>
                     <button
@@ -339,8 +351,12 @@ onBeforeUnmount(() => {
                       <img :src="asset('assets/icons/sparkles.svg')" alt="" />
                       {{ aiBreakingTaskId === task.id ? '拆解中…' : '智能拆解' }}
                     </button>
-                    <span v-if="wb.getTaskRecurrence(task.id) !== 'none'" class="rec-pill">
-                      ↻ {{ wb.RECURRENCE_LABELS[wb.getTaskRecurrence(task.id)] }}
+                    <span
+                      v-if="taskExtrasMap.get(task.id)?.recurrence && taskExtrasMap.get(task.id).recurrence !== 'none'"
+                      class="rec-pill"
+                    >
+                      <img class="inline-mini-icon" :src="asset('assets/icons/repeat.svg')" alt="" />
+                      {{ wb.RECURRENCE_LABELS[taskExtrasMap.get(task.id).recurrence] }}
                     </span>
                   </div>
                 </div>
@@ -370,8 +386,8 @@ onBeforeUnmount(() => {
 
               <!-- 展开的内联子步骤 Checklist -->
               <div v-if="expandedTaskIds.has(task.id)" class="inline-subtasks" @click.stop>
-                <TransitionGroup v-if="wb.getSubtasks(task.id).length" name="list-anim" tag="ul" class="inline-subtask-list">
-                  <li v-for="sub in wb.getSubtasks(task.id)" :key="sub.id" :class="{ done: sub.done }">
+                <TransitionGroup v-if="taskExtrasMap.get(task.id)?.subtasks.length" name="list-anim" tag="ul" class="inline-subtask-list">
+                  <li v-for="sub in taskExtrasMap.get(task.id).subtasks" :key="sub.id" :class="{ done: sub.done }">
                     <input
                       type="checkbox"
                       class="checkbox"
@@ -394,7 +410,7 @@ onBeforeUnmount(() => {
                   <button class="btn btn-soft btn-sm" type="submit">添加</button>
                 </form>
               </div>
-            </li>
+            </div>
           </template>
         </VirtualList>
 
@@ -429,14 +445,13 @@ onBeforeUnmount(() => {
 .toolbar-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .kbd-hint-pill {
   display: inline-flex; align-items: center; gap: 4px;
-  padding: 4px 10px; border-radius: 99px;
-  border: 1px solid var(--line); background: var(--surface-soft);
+  padding: 2px 4px;
   font-size: var(--text-2xs); color: var(--muted);
 }
 .kbd-hint-pill kbd {
   padding: 1px 5px; border-radius: 4px;
-  border: 1px solid var(--line-strong); background: var(--surface);
-  font-size: 10px; font-weight: 650; color: var(--ink-soft);
+  border: 1px solid var(--line); background: var(--surface);
+  font-size: 10px; font-weight: 600; color: var(--ink-soft);
 }
 
 .list-panel { padding: 0; overflow: hidden; width: 100%; }
@@ -471,14 +486,15 @@ onBeforeUnmount(() => {
 :deep(.task-list > li.done) .task-copy strong { text-decoration: line-through; color: var(--muted); }
 .task-sub-badges { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .subtask-toggle-btn {
-  padding: 1px 7px; border-radius: 5px;
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 2px 7px; border-radius: 5px;
   border: 1px solid var(--line); background: var(--surface-soft);
   color: var(--ink-soft); font-size: 11px; font-weight: 600;
 }
 .subtask-toggle-btn:hover { border-color: var(--brand); color: var(--brand-deep); background: var(--brand-pale); }
 .subtask-ai-btn {
   display: inline-flex; align-items: center; gap: 4px;
-  padding: 1px 7px; border-radius: 5px;
+  padding: 2px 7px; border-radius: 5px;
   border: 1px solid color-mix(in srgb, var(--brand) 28%, var(--line));
   background: var(--brand-pale); color: var(--brand-deep);
   font-size: 11px; font-weight: 650;
@@ -486,9 +502,10 @@ onBeforeUnmount(() => {
 .subtask-ai-btn img { width: 11px; height: 11px; }
 .subtask-ai-btn:disabled { opacity: 0.55; cursor: not-allowed; }
 .rec-pill {
-  padding: 1px 7px; border-radius: 5px;
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 2px 7px; border-radius: 5px;
   background: var(--brand-pale); color: var(--brand-deep);
-  font-size: 11px; font-weight: 650;
+  font-size: 11px; font-weight: 600;
 }
 
 .inline-subtasks {
@@ -508,7 +525,7 @@ onBeforeUnmount(() => {
 .task-meta { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: var(--text-meta); color: var(--muted); }
 .prio-badge {
   display: inline-flex; align-items: center; gap: 5px; flex: 0 0 auto;
-  padding: 2px 8px; border-radius: 999px;
+  padding: 1px 7px; border-radius: 6px;
   border: 1px solid var(--line); background: var(--surface-soft);
 }
 .prio-badge.high { color: var(--coral); border-color: color-mix(in srgb, var(--coral) 26%, var(--line)); }

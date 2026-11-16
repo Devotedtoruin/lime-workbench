@@ -32,7 +32,7 @@ export function inspectNativeConfiguration({ config, capability, packageVersion,
   add('frontend', config?.build?.frontendDist === '../dist', 'Bundle dist only, never the repository root.');
   add('build-hook', config?.build?.beforeBuildCommand === 'npm run build', 'Build hook produces the Vue bundle into dist from the frontend project root.');
   const dev = config?.build?.beforeDevCommand;
-  add('dev-hook', config?.build?.devUrl === 'http://127.0.0.1:5173' && dev?.script === 'npm run dev' && dev?.wait === false && dev?.cwd == null, 'Development hook starts the Vite server without waiting for it to exit.');
+  add('dev-hook', config?.build?.devUrl === 'http://127.0.0.1:3000' && dev?.script === 'npm run dev' && dev?.wait === false && dev?.cwd == null, 'Development hook starts the Vite server without waiting for it to exit.');
   add('icons', iconInputs.every(p => present.has(p)) && iconInputs.every(p => config?.bundle?.icon?.includes(p)), 'Native PNG and ICO icons must exist; SVG alone is not a native icon set.');
   const window = config?.app?.windows?.[0];
   add('window', config?.app?.windows?.length === 1 && window?.label === 'main' && window?.transparent === false && window?.width === 1280 && window?.height === 820, 'Single normal window; glass is CSS, not OS window transparency.');

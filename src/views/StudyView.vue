@@ -7,6 +7,7 @@ import { rangeSummary, heatmapWeeks, focusStreak } from '../../js/focus-stats.js
 const wb = useWorkbench();
 
 const customMinutes = ref(wb.state.settings.focusMinutes || 25);
+const minutesError = ref('');
 const durationPresets = [15, 25, 50, 90];
 const intentText = ref(wb.state.focus.text || '');
 
@@ -19,9 +20,9 @@ const ranges = [
 const rangeDays = ref(7);
 const rangeLabel = computed(() => ranges.find(r => r.days === rangeDays.value)?.label || '7 天');
 
-const summary = computed(() => rangeSummary(wb.state.study, rangeDays.value, new Date()));
-const heat = computed(() => heatmapWeeks(wb.state.study, 8, new Date()));
-const streak = computed(() => focusStreak(wb.state.study, new Date()));
+const summary = computed(() => rangeSummary(wb.state.study, rangeDays.value, wb.nowDate.value));
+const heat = computed(() => heatmapWeeks(wb.state.study, 8, wb.nowDate.value));
+const streak = computed(() => focusStreak(wb.state.study, wb.nowDate.value));
 
 // Bars scale against the busiest day in the window so a quiet week still shows shape.
 // Zero days keep a visible stub: a 0px bar looks like the day is missing from the chart
@@ -42,7 +43,13 @@ const statusText = computed(() => {
 });
 
 function applyMinutes(minutes) {
-  if (wb.setFocusDuration(Number(minutes))) customMinutes.value = Number(minutes);
+  minutesError.value = '';
+  const mins = Number(minutes);
+  if (!Number.isInteger(mins) || mins < 1 || mins > 180) {
+    minutesError.value = '专注时长需为 1–180 分钟整数';
+    return;
+  }
+  if (wb.setFocusDuration(mins)) customMinutes.value = mins;
 }
 function applyIntent() {
   if (wb.setFocusIntentText(intentText.value)) wb.showToast('专注事项已保存');
@@ -54,7 +61,7 @@ function applyIntent() {
     <header class="page-head">
       <div>
         <h1>专注</h1>
-        <p class="sub">为会议准备、周报和文档工作设定专注时段。</p>
+        <p class="sub">设定专注时段并关联今日任务。</p>
       </div>
       <button class="btn btn-soft" type="button" @click="applyMinutes(Math.round(wb.state.focus.total / 60))">
         <img :src="asset('assets/icons/rotate-ccw.svg')" alt="" />重置
@@ -91,12 +98,13 @@ function applyIntent() {
           <img :src="asset(`assets/icons/${wb.state.focus.running ? 'pause' : 'play'}.svg`)" alt="" />
           {{ wb.state.focus.running ? '暂停专注' : '开始专注' }}
         </button>
-        <form class="hero-custom" @submit.prevent="applyMinutes(customMinutes)">
+        <form class="hero-custom" novalidate @submit.prevent="applyMinutes(customMinutes)">
           <label class="sr-only" for="focusMinutes">自定义专注时长（分钟）</label>
-          <input id="focusMinutes" v-model.number="customMinutes" class="input" type="number" min="1" max="180" step="1" inputmode="numeric" />
+          <input id="focusMinutes" v-model.number="customMinutes" class="input" :class="{ 'is-invalid': minutesError }" type="number" min="1" max="180" step="1" inputmode="numeric" @input="minutesError = ''" />
           <button class="btn btn-soft" type="submit">应用时长</button>
         </form>
       </div>
+      <p v-if="minutesError" class="field-error hero-error">{{ minutesError }}</p>
 
       <p class="hero-total">今天已专注 <strong class="numeric">{{ wb.studyTodayMinutes.value }}</strong> 分钟</p>
     </section>
@@ -258,6 +266,7 @@ function applyIntent() {
 .hero-play { min-height: 46px; padding: 0 24px; }
 .hero-custom { display: flex; align-items: center; gap: 8px; }
 .hero-custom .input { width: 96px; min-height: 44px; text-align: center; }
+.hero-error { margin-top: 8px; text-align: center; }
 .hero-total { margin-top: 18px; font-size: var(--text-sm); color: var(--muted); }
 .hero-total strong { color: var(--ink); font-weight: 700; }
 .linked-task { display: flex; align-items: center; gap: 12px; margin-top: 12px; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--surface-soft); }
@@ -267,7 +276,7 @@ function applyIntent() {
 .pick-tasks { margin-top: 16px; }
 .pick-title { font-size: var(--text-meta); color: var(--muted); margin-bottom: 8px; }
 .pick-list { display: flex; flex-wrap: wrap; gap: 7px; }
-.pick-chip { border: 1px solid var(--line); border-radius: var(--radius-pill); background: var(--surface); min-height: 32px; padding: 0 12px; font-size: var(--text-meta); color: var(--ink-soft); }
+.pick-chip { border: 1px solid var(--line); border-radius: 8px; background: var(--surface); min-height: 32px; padding: 0 12px; font-size: var(--text-meta); color: var(--ink-soft); }
 .pick-chip:hover { border-color: var(--brand); color: var(--brand-deep); background: var(--brand-pale); }
 
 /* ---------- 专注记录 ---------- */

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseCommand, parseCommandList, parseClock, parseDateWord, preview, resolveLocalShortcut, sportMinutes, guessCategory, num, cnNum, stripNumber } from '../js/command.js';
+import { parseCommand, parseCommandList, parseClock, parseDateWord, preview, resolveLocalShortcut, sportMinutes, guessCategory, normalizeLedgerCategory, displayCategoryName, num, cnNum, stripNumber } from '../js/command.js';
 
 const NOW = new Date(2026, 9, 12, 10, 0); // 周一
 
@@ -369,4 +369,38 @@ test('multi-command parser accepts spaces, unit boundaries and three or more int
   for (const text of ['', '喝水300ml', '骑车30分钟', '明天下午三点开会', '午饭28元然后']) {
     assert.deepEqual(parseCommandList(text, NOW), [], text);
   }
+});
+
+test('explicit note prefix parses note intents and expanded shortcut pages resolve cleanly', () => {
+  const noteCmd = parseCommand('便签：架构评审要点 | 确认本地存储容量', NOW);
+  assert.equal(noteCmd?.kind, 'note');
+  assert.equal(noteCmd?.payload?.title, '架构评审要点');
+  assert.equal(noteCmd?.payload?.body, '确认本地存储容量');
+  assert.match(preview(noteCmd), /便签：架构评审要点/);
+
+  const singleNote = parseCommand('记笔记：临时采购清单', NOW);
+  assert.equal(singleNote?.kind, 'note');
+  assert.equal(singleNote?.payload?.title, '临时采购清单');
+
+  for (const [text, page] of [
+    ['打开项目', 'projects'],
+    ['网址导航', 'bookmarks'],
+    ['打开知识库', 'notes'],
+    ['工具箱', 'toolbox'],
+    ['打开日报', 'standup'],
+    ['打开账本', 'ledger'],
+    ['天气', 'weather'],
+    ['打开设置', 'me']
+  ]) {
+    assert.deepEqual(resolveLocalShortcut(text), { kind: 'navigate', page, payload: {} }, text);
+  }
+});
+
+test('legacy ledger categories normalize and display consistently', () => {
+  assert.equal(normalizeLedgerCategory('🏠 居家'), '🏠 居住');
+  assert.equal(normalizeLedgerCategory('自由职业'), '💼 收入');
+  assert.equal(normalizeLedgerCategory('吃饭'), '🍚 吃饭');
+  assert.equal(displayCategoryName('🏠 居家'), '居住');
+  assert.equal(displayCategoryName('自由职业'), '收入');
+  assert.equal(displayCategoryName('自定义咖啡'), '自定义咖啡');
 });
